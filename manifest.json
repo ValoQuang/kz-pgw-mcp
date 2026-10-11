@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "kz-pgw-mcp",
   "display_name": "KZ Payment Gateway (staging)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Staging backoffice API + read-only staging Postgres for KZ payment gateway work.",
   "long_description": "One MCP server for PGW investigation on staging.\n\n- `bo_*` tools: login (with TOTP), find test members, create deposit/withdraw orders, raw API calls against https://api.<group>.trykz.dev\n- `pg_*` tools: read-only SQL, list databases/tables, describe tables on the staging cluster (kz-tpg1, kz-tco, ...)\n\nWrites (deposit/withdraw/non-GET API) are off unless you enable them below.",
   "author": {
@@ -14,13 +14,21 @@
     "url": "https://github.com/ValoQuang/kz-pgw-mcp.git"
   },
   "license": "UNLICENSED",
-  "keywords": ["kz", "payment-gateway", "backoffice", "postgres", "staging"],
+  "keywords": [
+    "kz",
+    "payment-gateway",
+    "backoffice",
+    "postgres",
+    "staging"
+  ],
   "server": {
     "type": "node",
     "entry_point": "dist/cli.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/dist/cli.js"],
+      "args": [
+        "${__dirname}/dist/cli.js"
+      ],
       "env": {
         "KZ_USERNAME": "${user_config.kz_username}",
         "KZ_PASSWORD": "${user_config.kz_password}",
@@ -41,18 +49,54 @@
     }
   },
   "tools": [
-    { "name": "bo_login", "description": "Login to a staging group backoffice (step 1)" },
-    { "name": "bo_submit_totp", "description": "Submit 6-digit TOTP (step 2)" },
-    { "name": "bo_whoami", "description": "Show cached sessions" },
-    { "name": "bo_logout", "description": "Drop a cached session" },
-    { "name": "bo_find_member", "description": "Find test members by wallet balance (DB read)" },
-    { "name": "bo_create_deposit", "description": "Create a deposit order (needs writes enabled)" },
-    { "name": "bo_create_withdraw", "description": "Create a withdraw order (needs writes enabled)" },
-    { "name": "bo_api", "description": "Raw authenticated kz-api call" },
-    { "name": "pg_query", "description": "Run one read-only SQL statement" },
-    { "name": "pg_list_databases", "description": "List databases on the staging cluster" },
-    { "name": "pg_list_tables", "description": "List tables in a schema" },
-    { "name": "pg_describe_table", "description": "Columns, indexes, FKs of a table" }
+    {
+      "name": "bo_login",
+      "description": "Login to a staging group backoffice (step 1)"
+    },
+    {
+      "name": "bo_submit_totp",
+      "description": "Submit 6-digit TOTP (step 2)"
+    },
+    {
+      "name": "bo_whoami",
+      "description": "Show cached sessions"
+    },
+    {
+      "name": "bo_logout",
+      "description": "Drop a cached session"
+    },
+    {
+      "name": "bo_find_member",
+      "description": "Find test members by wallet balance (DB read)"
+    },
+    {
+      "name": "bo_create_deposit",
+      "description": "Create a deposit order (needs writes enabled)"
+    },
+    {
+      "name": "bo_create_withdraw",
+      "description": "Create a withdraw order (needs writes enabled)"
+    },
+    {
+      "name": "bo_api",
+      "description": "Raw authenticated kz-api call"
+    },
+    {
+      "name": "pg_query",
+      "description": "Run one read-only SQL statement"
+    },
+    {
+      "name": "pg_list_databases",
+      "description": "List databases on the staging cluster"
+    },
+    {
+      "name": "pg_list_tables",
+      "description": "List tables in a schema"
+    },
+    {
+      "name": "pg_describe_table",
+      "description": "Columns, indexes, FKs of a table"
+    }
   ],
   "user_config": {
     "kz_username": {
@@ -65,7 +109,8 @@
       "type": "string",
       "title": "Backoffice password",
       "sensitive": true,
-      "required": true
+      "required": true,
+      "description": "Staff password for the staging backoffice."
     },
     "kz_staging_domain": {
       "type": "string",
@@ -93,25 +138,28 @@
       "default": 5432,
       "min": 1,
       "max": 65535,
-      "required": false
+      "required": false,
+      "description": "Postgres port. Default 5432."
     },
     "pg_database": {
       "type": "string",
       "title": "Default database",
       "description": "One per group: kz-tpg1, kz-tco, ...",
-      "default": "kz-tpg1",
+      "default": "",
       "required": false
     },
     "pg_user": {
       "type": "string",
       "title": "Postgres user",
-      "required": true
+      "required": true,
+      "description": "Postgres username (pgAdmin → Connection → Username)."
     },
     "pg_password": {
       "type": "string",
       "title": "Postgres password",
       "sensitive": true,
-      "required": true
+      "required": true,
+      "description": "Postgres password."
     },
     "pg_sslmode": {
       "type": "string",
@@ -131,13 +179,15 @@
       "type": "number",
       "title": "SSH port",
       "default": 22,
-      "required": false
+      "required": false,
+      "description": "SSH port of the jump host. Default 22."
     },
     "ssh_user": {
       "type": "string",
       "title": "SSH user",
-      "default": "ubuntu",
-      "required": false
+      "default": "",
+      "required": false,
+      "description": "SSH username on the jump host."
     },
     "ssh_password": {
       "type": "string",
@@ -150,13 +200,17 @@
       "type": "string",
       "title": "NordLayer gateway",
       "description": "Named in the error message when the DB is unreachable.",
-      "default": "s5tech-VPS",
+      "default": "",
       "required": false
     }
   },
   "compatibility": {
     "claude_desktop": ">=0.10.0",
-    "platforms": ["darwin", "win32", "linux"],
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
     "runtimes": {
       "node": ">=20.0.0"
     }
