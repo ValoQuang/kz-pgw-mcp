@@ -1,0 +1,10 @@
+src
+scripts
+.github
+.env
+.env.example
+dist-mcpb
+*.mcpb
+tsconfig.json
+.gitignore
+.DS_Store

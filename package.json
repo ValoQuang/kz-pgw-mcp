@@ -1,0 +1,51 @@
+{
+  "name": "@valoquang/kz-pgw-mcp",
+  "version": "0.1.0",
+  "description": "KZ Payment Gateway MCP: staging backoffice API + read-only staging Postgres in one server",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "kz-pgw-mcp": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "manifest.json",
+    "README.md"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ValoQuang/kz-pgw-mcp.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "init": "node dist/cli.js init",
+    "check": "node scripts/check.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/cli.js",
+    "mcpb": "npm run build && npx -y @anthropic-ai/mcpb pack . dist-mcpb/kz-pgw-mcp.mcpb",
+    "prepublishOnly": "npm run build && npm run check"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "pg": "^8.11.5",
+    "ssh2": "^1.16.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "@types/ssh2": "^1.15.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

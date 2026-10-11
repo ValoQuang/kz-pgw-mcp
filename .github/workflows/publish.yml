@@ -1,0 +1,34 @@
+# Publish to GitHub Packages on a version tag, and attach the .mcpb to the release.
+#   npm version patch && git push --follow-tags
+name: publish
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@valoquang"
+      - run: corepack enable && yarn install --frozen-lockfile
+      - run: npm run build
+      - run: npm run check
+      - run: node scripts/smoke.mjs
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build .mcpb
+        run: |
+          npm prune --omit=dev
+          npx -y @anthropic-ai/mcpb pack . kz-pgw-mcp.mcpb
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: kz-pgw-mcp.mcpb
+          generate_release_notes: true

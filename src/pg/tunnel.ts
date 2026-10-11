@@ -1,0 +1,188 @@
+/**
+ * Optional SSH tunnel. Mirrors pgAdmin's "SSH Tunnel" tab.
+ *
+ * Set SSH_HOST (+ SSH_USER, SSH_PORT, SSH_PASSWORD or SSH_KEY_PATH) and every
+ * Postgres connection is opened through the jump host. No local port is bound;
+ * each pg client gets its own forwarded stream.
+ */
+
+import { existsSync, readFileSync } from "node:fs";
+import { createServer, type AddressInfo, type Server } from "node:net";
+import type { Duplex } from "node:stream";
+
+import { Client as SshClient, type ConnectConfig } from "ssh2";
+
+export interface TunnelConfig {
+  host: string;
+  port: number;
+  username: string;
+  password?: string;
+  privateKey?: Buffer;
+  passphrase?: string;
+  agent?: string;
+  /** Which auth sources were found, for error messages. */
+  authSources: string[];
+}
+
+function expandHome(p: string): string {
+  return p.replace(/^~(?=$|\/)/, process.env.HOME ?? "");
+}
+
+/**
+ * Auth order, like the ssh CLI: SSH_PASSWORD if set; SSH_KEY_PATH if set;
+ * otherwise ssh-agent (SSH_AUTH_SOCK) plus the first default key found in
+ * ~/.ssh. ssh2 tries every method given.
+ */
+export function tunnelFromEnv(): TunnelConfig | null {
+  const host = process.env.SSH_HOST;
+  if (!host) return null;
+
+  const authSources: string[] = [];
+  const password = process.env.SSH_PASSWORD || undefined;
+  if (password) authSources.push("password");
+
+  let keyPath = process.env.SSH_KEY_PATH ? expandHome(process.env.SSH_KEY_PATH) : undefined;
+  if (!keyPath) {
+    const home = process.env.HOME ?? "";
+    keyPath = ["id_ed25519", "id_rsa", "id_ecdsa"]
+      .map((n) => `${home}/.ssh/${n}`)
+      .find((p) => existsSync(p));
+  }
+  const privateKey = keyPath ? readFileSync(keyPath) : undefined;
+  if (keyPath) authSources.push(`key ${keyPath}`);
+
+  const agent = process.env.SSH_AUTH_SOCK || undefined;
+  if (agent) authSources.push("ssh-agent");
+
+  if (!password && !privateKey && !agent) {
+    throw new Error("SSH_HOST set but no auth: set SSH_PASSWORD or SSH_KEY_PATH, or run ssh-agent");
+  }
+  return {
+    host,
+    port: Number(process.env.SSH_PORT ?? 22),
+    username: process.env.SSH_USER ?? "ubuntu",
+    password,
+    privateKey,
+    passphrase: process.env.SSH_KEY_PASSPHRASE || undefined,
+    agent,
+    authSources,
+  };
+}
+
+export class Tunnel {
+  private client: SshClient | null = null;
+  private connecting: Promise<SshClient> | null = null;
+
+  constructor(
+    private readonly cfg: TunnelConfig,
+    private readonly target: { host: string; port: number },
+  ) {}
+
+  get label(): string {
+    return `${this.cfg.username}@${this.cfg.host}:${this.cfg.port}`;
+  }
+
+  private connect(): Promise<SshClient> {
+    if (this.client) return Promise.resolve(this.client);
+    if (this.connecting) return this.connecting;
+
+    this.connecting = new Promise<SshClient>((resolve, reject) => {
+      const c = new SshClient();
+      const opts: ConnectConfig = {
+        host: this.cfg.host,
+        port: this.cfg.port,
+        username: this.cfg.username,
+        password: this.cfg.password,
+        privateKey: this.cfg.privateKey,
+        passphrase: this.cfg.passphrase,
+        agent: this.cfg.agent,
+        readyTimeout: 15_000,
+        keepaliveInterval: 30_000,
+        keepaliveCountMax: 3,
+      };
+      c.on("ready", () => {
+        this.client = c;
+        this.connecting = null;
+        console.error(`ssh tunnel up: ${this.label}`);
+        resolve(c);
+      });
+      c.on("error", (err) => {
+        this.connecting = null;
+        if (this.client === c) this.client = null;
+        reject(
+          Object.assign(
+            new Error(`ssh ${this.label}: ${err.message} (tried: ${this.cfg.authSources.join(", ")})`),
+            { code: "ESSH" },
+          ),
+        );
+      });
+      c.on("close", () => {
+        if (this.client === c) this.client = null;
+        console.error("ssh tunnel closed");
+      });
+      c.connect(opts);
+    });
+    return this.connecting;
+  }
+
+  /** One forwarded TCP stream to the Postgres target. */
+  async open(): Promise<Duplex> {
+    const c = await this.connect();
+    return new Promise<Duplex>((resolve, reject) => {
+      c.forwardOut("127.0.0.1", 0, this.target.host, this.target.port, (err, stream: Duplex | PromiseLike<Duplex>) => {
+        if (err) {
+          reject(
+            Object.assign(new Error(`ssh forward to ${this.target.host}:${this.target.port}: ${err.message}`), {
+              code: "ESSH",
+            }),
+          );
+          return;
+        }
+        resolve(stream);
+      });
+    });
+  }
+
+  /**
+   * Local listener on 127.0.0.1:<random>. Every accepted socket is piped to a
+   * fresh forwarded stream. pg then connects to this local port like a normal
+   * host. Resolves with the port.
+   */
+  async listen(): Promise<{ host: string; port: number }> {
+    if (this.server) return this.local!;
+    // Fail fast if the jump host is unreachable or the password is wrong.
+    await this.connect();
+    const server = createServer((sock) => {
+      sock.on("error", () => sock.destroy());
+      this.open()
+        .then((fwd) => {
+          fwd.on("error", () => sock.destroy());
+          sock.pipe(fwd).pipe(sock);
+          sock.on("close", () => fwd.end());
+          fwd.on("close", () => sock.destroy());
+        })
+        .catch((err: Error) => {
+          console.error(err.message);
+          sock.destroy();
+        });
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const addr = server.address() as AddressInfo;
+    this.server = server;
+    this.local = { host: "127.0.0.1", port: addr.port };
+    return this.local;
+  }
+
+  private server: Server | null = null;
+  private local: { host: string; port: number } | null = null;
+
+  close(): void {
+    this.server?.close();
+    this.server = null;
+    this.client?.end();
+    this.client = null;
+  }
+}
