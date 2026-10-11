@@ -124,7 +124,7 @@
       "type": "string",
       "title": "SSH jump host",
       "description": "pgAdmin → SSH Tunnel tab. Leave empty for direct connect.",
-      "default": "13.251.63.79",
+      "default": "",
       "required": false
     },
     "ssh_port": {
