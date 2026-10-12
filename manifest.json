@@ -44,7 +44,8 @@
         "SSH_PORT": "${user_config.ssh_port}",
         "SSH_USER": "${user_config.ssh_user}",
         "SSH_PASSWORD": "${user_config.ssh_password}",
-        "PG_MCP_VPN_GATEWAY": "${user_config.vpn_gateway}"
+        "PG_MCP_VPN_GATEWAY": "${user_config.vpn_gateway}",
+        "KZ_SKILLS_DIR": "${user_config.skills_dir}"
       }
     }
   },
@@ -200,6 +201,13 @@
       "type": "string",
       "title": "NordLayer gateway",
       "description": "Named in the error message when the DB is unreachable.",
+      "default": "",
+      "required": false
+    },
+    "skills_dir": {
+      "type": "string",
+      "title": "Claude skills folder",
+      "description": "Where bundled skills (quangy, sql, kz-pgw-issue) are copied. Leave empty for ~/.claude/skills. Type off to skip.",
       "default": "",
       "required": false
     }

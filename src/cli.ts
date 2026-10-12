@@ -6,8 +6,8 @@
  * kz-pgw-mcp install    register with Claude Desktop / print Claude Code command
  */
 
-import { PKG } from "./config.js";
-import { VERSION } from "./version.js";
+import { PKG } from "./core/constants.js";
+import { VERSION } from "./core/version.js";
 
 const [cmd = "serve", ...rest] = process.argv.slice(2);
 
@@ -19,13 +19,13 @@ switch (cmd) {
     });
     break;
   case "init":
-    await (await import("./init.js")).init(rest);
+    await (await import("./commands/init.js")).init(rest);
     break;
   case "doctor":
-    await (await import("./doctor.js")).doctor();
+    await (await import("./commands/doctor.js")).doctor();
     break;
   case "install":
-    await (await import("./install.js")).install(rest);
+    await (await import("./commands/install.js")).install(rest);
     break;
   case "-v":
   case "--version":

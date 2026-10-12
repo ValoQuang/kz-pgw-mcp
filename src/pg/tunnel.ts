@@ -8,9 +8,14 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { createServer, type AddressInfo, type Server } from "node:net";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { Duplex } from "node:stream";
 
 import { Client as SshClient, type ConnectConfig } from "ssh2";
+
+import { ssh } from "../core/config.js";
+import { TIMEOUT_MS } from "../core/constants.js";
 
 export interface TunnelConfig {
   host: string;
@@ -24,9 +29,8 @@ export interface TunnelConfig {
   authSources: string[];
 }
 
-function expandHome(p: string): string {
-  return p.replace(/^~(?=$|\/)/, process.env.HOME ?? "");
-}
+/** Default keys tried when SSH_KEY_PATH is unset, like the ssh CLI. */
+const DEFAULT_KEYS = ["id_ed25519", "id_rsa", "id_ecdsa"].map((n) => join(homedir(), ".ssh", n));
 
 /**
  * Auth order, like the ssh CLI: SSH_PASSWORD if set; SSH_KEY_PATH if set;
@@ -34,20 +38,14 @@ function expandHome(p: string): string {
  * ~/.ssh. ssh2 tries every method given.
  */
 export function tunnelFromEnv(): TunnelConfig | null {
-  const host = process.env.SSH_HOST;
+  const host = ssh.host();
   if (!host) return null;
 
   const authSources: string[] = [];
-  const password = process.env.SSH_PASSWORD || undefined;
+  const password = ssh.password();
   if (password) authSources.push("password");
 
-  let keyPath = process.env.SSH_KEY_PATH ? expandHome(process.env.SSH_KEY_PATH) : undefined;
-  if (!keyPath) {
-    const home = process.env.HOME ?? "";
-    keyPath = ["id_ed25519", "id_rsa", "id_ecdsa"]
-      .map((n) => `${home}/.ssh/${n}`)
-      .find((p) => existsSync(p));
-  }
+  const keyPath = ssh.keyPath() ?? DEFAULT_KEYS.find((p) => existsSync(p));
   const privateKey = keyPath ? readFileSync(keyPath) : undefined;
   if (keyPath) authSources.push(`key ${keyPath}`);
 
@@ -59,11 +57,11 @@ export function tunnelFromEnv(): TunnelConfig | null {
   }
   return {
     host,
-    port: Number(process.env.SSH_PORT ?? 22),
-    username: process.env.SSH_USER ?? "ubuntu",
+    port: ssh.port(),
+    username: ssh.user(),
     password,
     privateKey,
-    passphrase: process.env.SSH_KEY_PASSPHRASE || undefined,
+    passphrase: ssh.passphrase(),
     agent,
     authSources,
   };
@@ -96,8 +94,8 @@ export class Tunnel {
         privateKey: this.cfg.privateKey,
         passphrase: this.cfg.passphrase,
         agent: this.cfg.agent,
-        readyTimeout: 15_000,
-        keepaliveInterval: 30_000,
+        readyTimeout: TIMEOUT_MS.sshReady,
+        keepaliveInterval: TIMEOUT_MS.sshKeepalive,
         keepaliveCountMax: 3,
       };
       c.on("ready", () => {

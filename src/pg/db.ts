@@ -1,6 +1,9 @@
+/** Postgres pools (one per database), read-only query runners, catalog queries. */
+
 import pg from "pg";
 
-import { pg as cfg } from "../config.js";
+import { pg as cfg } from "../core/config.js";
+import { ROWS, SERVER_NAME, TIMEOUT_MS } from "../core/constants.js";
 import { guardSql, limitWrap } from "./guard.js";
 import { Tunnel, tunnelFromEnv } from "./tunnel.js";
 
@@ -11,8 +14,6 @@ types.setTypeParser(1114, (v: string) => v); // timestamp
 types.setTypeParser(1184, (v: string) => v); // timestamptz
 types.setTypeParser(1082, (v: string) => v); // date
 
-export const DEFAULT_MAX_ROWS = 200;
-export const HARD_MAX_ROWS = 1000;
 
 function sslFromEnv(): pg.PoolConfig["ssl"] {
   const mode = cfg.sslMode();
@@ -46,12 +47,12 @@ export async function getPool(database: string = cfg.database()): Promise<pg.Poo
       host,
       port,
       database,
-      user: process.env.PGUSER,
-      password: process.env.PGPASSWORD,
+      user: cfg.user(),
+      password: cfg.password(),
       max: 2,
-      idleTimeoutMillis: 60_000,
-      connectionTimeoutMillis: 15_000,
-      application_name: "kz-pgw-mcp",
+      idleTimeoutMillis: TIMEOUT_MS.pgIdle,
+      connectionTimeoutMillis: TIMEOUT_MS.pgConnect,
+      application_name: SERVER_NAME,
       ssl: sslFromEnv(),
     });
     pools.set(database, p);
@@ -96,7 +97,7 @@ export async function runReadOnly(rawSql: string, maxRows: number, database?: st
   const g = guardSql(rawSql);
   if (!g.ok) throw new SqlRejected(g.reason);
 
-  const max = Math.min(Math.max(1, maxRows), HARD_MAX_ROWS);
+  const max = Math.min(Math.max(1, maxRows), ROWS.hardMax);
   const sql = g.wrappable ? limitWrap(g.sql, max) : g.sql;
 
   const start = Date.now();
@@ -114,7 +115,7 @@ export async function runReadOnly(rawSql: string, maxRows: number, database?: st
   });
 }
 
-/** Internal, parameterised, trusted SQL (bo_find_member). Still READ ONLY. */
+/** Internal, parameterised, trusted SQL (e.g. bo_find_member). Still READ ONLY. */
 export async function queryRows<R extends pg.QueryResultRow = pg.QueryResultRow>(
   sql: string,
   params: unknown[],

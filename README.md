@@ -68,6 +68,7 @@ Priority: env vars → `$KZ_PGW_CONFIG` → `~/.config/kz-pgw/.env` → `<packag
 | `PG_MCP_LABEL` | `$PGDATABASE@$PGHOST` | Shown in tool descriptions |
 | `PG_MCP_TIMEOUT_MS` | `30000` | |
 | `PG_MCP_VPN_APP`, `PG_MCP_VPN_GATEWAY` | `NordLayer`, `s5tech-VPS` | macOS: app opened on connection error. `""` disables |
+| `KZ_SKILLS_DIR` | `~/.claude/skills` | Where bundled skills are copied. `off` = don't copy |
 
 VPN: staging is only reachable on NordLayer. On a network error the server opens NordLayer and tells you which gateway to click.
 
@@ -80,6 +81,22 @@ node dist/cli.js init
 node dist/cli.js doctor
 node dist/cli.js install --local   # Desktop entry points at this checkout's dist/cli.js
 ```
+
+## Skills
+
+`skills/` holds Claude skills that drive this MCP. Shipped in the npm package and `.mcpb`.
+
+Auto-installed to `~/.claude/skills/` (configurable) on `install` and on every server start. Restart Claude once after the first start to load them.
+- Updates when the package version changes. Skills removed from the package are deleted.
+- Only touches folders it created (marker file `.kz-pgw-mcp`). Your own skill with the same name is never overwritten.
+- Folder: `KZ_SKILLS_DIR` (asked by `init`, or "Claude skills folder" in the `.mcpb` settings). Blank = `~/.claude/skills`. `off` = don't copy.
+- Claude Desktop **chat** (not Code tab) does not read `~/.claude/skills/`. Upload there by hand: zip each folder → Settings → Capabilities → Skills.
+
+| Skill | Use |
+|---|---|
+| `quangy` | "Quangy, login tpg1 / make a 300 deposit / check this tx" — BO + PG operator |
+| `sql` | Read-only staging SQL. Real schema, enums, query templates (`references/`) |
+| `kz-pgw-issue` | Diagnose stuck / failed / duplicate deposits and withdrawals |
 
 ## Develop
 
@@ -96,15 +113,38 @@ Layout:
 
 ```
 src/
-  cli.ts        serve | init | doctor | install
-  config.ts     env loading, accessors, ConfigError
-  server.ts     McpServer + both tool sets
-  bo/           auth (OAuth+TOTP), api, tools
-  pg/           db (pool, tunnel, read-only tx), guard, errors, tools
-  init.ts       interactive setup → ~/.config/kz-pgw/.env
-  prompt.ts     readline helpers (no deps)
-manifest.json   .mcpb user_config form for Claude Desktop
+  cli.ts              entry: serve | init | doctor | install
+  server.ts           McpServer: registers bo_* + pg_* tools, syncs skills, status → stderr
+  core/               shared, no MCP or DB code
+    constants.ts      package name, tool names, timeouts, row limits, annotation presets
+    env.ts            every env var: key, default, comment, secret. Feeds config, init, doctor
+    config.ts         loads .env files, typed accessors (bo, pg, ssh, skills), ConfigError
+    paths.ts          package root, ~/.config/kz-pgw, ~/.claude, expandHome
+    result.ts         ok / fail / safely (try/catch → tool error)
+    version.ts        version from package.json
+  commands/           CLI subcommands
+    init.ts           interactive setup → ~/.config/kz-pgw/.env
+    doctor.ts         config summary + DB connection test
+    install.ts        Claude Desktop entry + Claude Code command + skills
+    prompt.ts         readline helpers (no deps)
+  bo/                 backoffice API
+    http.ts           JSON fetch
+    auth.ts           OAuth + TOTP sessions per group
+    api.ts            authenticated call
+    totp.ts           RFC 6238 codes
+    tools.ts          bo_* tools
+  pg/                 staging Postgres, read-only
+    db.ts             pools, read-only tx, catalog queries
+    guard.ts          SQL allow-list
+    tunnel.ts         SSH jump host
+    errors.ts         error → one actionable line, VPN nudge
+    tools.ts          pg_* tools
+  skills/sync.ts      copies skills/ → KZ_SKILLS_DIR
+skills/               bundled Claude skills (quangy, sql, kz-pgw-issue)
+manifest.json         .mcpb user_config form for Claude Desktop
 ```
+
+New env var: add it to `src/core/env.ts`, then an accessor in `config.ts`. `init` and `doctor` pick it up. Update `manifest.json` and `.env.example` by hand.
 
 ## Release
 

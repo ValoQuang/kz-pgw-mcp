@@ -5,10 +5,11 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 
 const live = process.argv.includes("--live");
-const env = { ...process.env };
+// Never write skills into the real ~/.claude during tests.
+const env = { ...process.env, KZ_SKILLS_DIR: "off" };
 if (!live) {
   // Strip everything so the no-config path is exercised.
-  for (const k of Object.keys(env)) if (/^(KZ_|PG|SSH_)/.test(k)) delete env[k];
+  for (const k of Object.keys(env)) if (/^(KZ_|PG|SSH_)/.test(k) && k !== "KZ_SKILLS_DIR") delete env[k];
   env.KZ_PGW_CONFIG = "/nonexistent/.env";
 }
 

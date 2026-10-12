@@ -1,4 +1,14 @@
-import { apiBase, bo as cfg } from "../config.js";
+/**
+ * Backoffice OAuth for staff ("person") accounts, one cached session per group.
+ *   1. POST /oauth/totp               → is TOTP on?
+ *   2. POST /oauth/access_token password → pre-TOTP token
+ *   3. POST /oauth/access_token totp     → real token (auto if KZ_TOTP_SECRET_<GROUP> set)
+ * Tokens refresh via grant_type=refresh_token.
+ */
+
+import { apiBase, bo as cfg } from "../core/config.js";
+import { TIMEOUT_MS, TOOLS } from "../core/constants.js";
+import { requestJson } from "./http.js";
 import { totpCode, totpSecondsLeft } from "./totp.js";
 
 interface TokenResponse {
@@ -22,24 +32,22 @@ interface Session {
   totpDone: boolean;
 }
 
+/** Renew this many seconds before expiry. */
+const EXPIRY_SKEW_S = 60;
+
 const sessions = new Map<string, Session>();
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(20_000),
+const nowS = (): number => Math.floor(Date.now() / 1000);
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** POST to /oauth/<path> with the staff credentials + extra fields. */
+function oauth<T>(group: string, path: "totp" | "access_token", extra: Record<string, unknown> = {}): Promise<T> {
+  const { username, password } = cfg.credentials();
+  return requestJson<T>("POST", `${apiBase(group)}/oauth/${path}`, {
+    body: { client_id: username, client_secret: password, entity_type: "person", ...extra },
+    timeoutMs: TIMEOUT_MS.boAuth,
+    errorChars: 500,
   });
-  const text = await res.text();
-  let data: unknown;
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { raw: text };
-  }
-  if (!res.ok) throw new Error(`${res.status} ${url} → ${JSON.stringify(data).slice(0, 500)}`);
-  return data as T;
 }
 
 function store(group: string, t: TokenResponse, totpDone: boolean): Session {
@@ -54,74 +62,53 @@ function store(group: string, t: TokenResponse, totpDone: boolean): Session {
   return s;
 }
 
-/**
- * Step 1+2: check TOTP, get pre-TOTP token.
- * If KZ_TOTP_SECRET_<GROUP> is set, also does step 3 automatically.
- */
+/** Steps 1+2, plus step 3 when a TOTP secret is configured. */
 export async function login(group: string): Promise<{ totpRequired: boolean; autoTotp: boolean; expiresAt?: number }> {
-  const base = apiBase(group);
-  const { username, password } = cfg.credentials();
-  const common = { client_id: username, client_secret: password, entity_type: "person" };
-
-  const check = await postJson<TotpCheck>(`${base}/oauth/totp`, common);
+  const check = await oauth<TotpCheck>(group, "totp");
   const totpRequired = check.result?.totpEnabled === true;
 
-  const pre = await postJson<TokenResponse>(`${base}/oauth/access_token`, { ...common, grant_type: "password" });
+  const pre = await oauth<TokenResponse>(group, "access_token", { grant_type: "password" });
   store(group, pre, !totpRequired);
   if (!totpRequired) return { totpRequired: false, autoTotp: false, expiresAt: pre.expires_at };
 
   const secret = cfg.totpSecret(group);
   if (!secret) return { totpRequired: true, autoTotp: false };
 
-  if (totpSecondsLeft() < 3) await new Promise((r) => setTimeout(r, 3500));
+  // Code about to roll over → wait for the next window.
+  if (totpSecondsLeft() < 3) await sleep(3500);
   const s = await submitTotp(group, totpCode(secret));
   return { totpRequired: false, autoTotp: true, expiresAt: s.expiresAt };
 }
 
 /** Step 3: exchange TOTP code for the real token. */
 export async function submitTotp(group: string, totp: string): Promise<Session> {
-  const { username, password } = cfg.credentials();
-  const t = await postJson<TokenResponse>(`${apiBase(group)}/oauth/access_token`, {
-    client_id: username,
-    client_secret: password,
-    entity_type: "person",
-    grant_type: "totp",
-    totp,
-  });
-  return store(group, t, true);
+  return store(group, await oauth<TokenResponse>(group, "access_token", { grant_type: "totp", totp }), true);
 }
 
 async function refresh(group: string, s: Session): Promise<Session> {
-  const { username, password } = cfg.credentials();
-  const t = await postJson<TokenResponse>(`${apiBase(group)}/oauth/access_token`, {
-    client_id: username,
-    client_secret: password,
-    entity_type: "person",
-    grant_type: "refresh_token",
-    refresh_token: s.refreshToken,
-  });
+  const t = await oauth<TokenResponse>(group, "access_token", { grant_type: "refresh_token", refresh_token: s.refreshToken });
   return store(group, t, true);
 }
 
 export async function bearer(group: string): Promise<string> {
   const s = sessions.get(group);
-  const now = Math.floor(Date.now() / 1000);
-  if (!s || !s.totpDone) throw new Error(`Not logged in to ${group}. Call bo_login then bo_submit_totp.`);
-  if (s.expiresAt - 60 > now) return s.accessToken;
-  if (s.refreshExpiresAt - 60 > now) {
+  const now = nowS();
+  if (!s || !s.totpDone) throw new Error(`Not logged in to ${group}. Call ${TOOLS.boLogin} then ${TOOLS.boSubmitTotp}.`);
+  if (s.expiresAt - EXPIRY_SKEW_S > now) return s.accessToken;
+  if (s.refreshExpiresAt - EXPIRY_SKEW_S > now) {
     try {
       return (await refresh(group, s)).accessToken;
     } catch (e) {
       sessions.delete(group);
-      throw new Error(`Refresh failed for ${group}: ${(e as Error).message}. Re-run bo_login.`);
+      throw new Error(`Refresh failed for ${group}: ${(e as Error).message}. Re-run ${TOOLS.boLogin}.`);
     }
   }
   sessions.delete(group);
-  throw new Error(`Session for ${group} expired. Re-run bo_login.`);
+  throw new Error(`Session for ${group} expired. Re-run ${TOOLS.boLogin}.`);
 }
 
 export function status(): Array<{ group: string; totpDone: boolean; expiresAt: number; expiresInSec: number }> {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowS();
   return [...sessions.entries()].map(([group, s]) => ({
     group,
     totpDone: s.totpDone,

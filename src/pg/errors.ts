@@ -1,6 +1,9 @@
+/** pg / ssh / config errors → one actionable line for the model. Opens the VPN app on network errors (macOS). */
+
 import { spawn } from "node:child_process";
 
-import { ConfigError, pg as cfg } from "../config.js";
+import { ConfigError, pg as cfg } from "../core/config.js";
+import { TIMEOUT_MS, TOOLS } from "../core/constants.js";
 import { SqlRejected } from "./db.js";
 
 let lastVpnOpen = 0;
@@ -10,22 +13,18 @@ function nudgeVpn(): string {
   const app = cfg.vpnApp();
   if (process.platform !== "darwin" || app === "") return "";
   const now = Date.now();
-  if (now - lastVpnOpen > 60_000) {
+  if (now - lastVpnOpen > TIMEOUT_MS.vpnNudgeCooldown) {
     lastVpnOpen = now;
     spawn("open", ["-a", app], { stdio: "ignore", detached: true }).unref();
   }
   return ` VPN likely off. Opened ${app} — connect to gateway '${cfg.vpnGateway()}', then retry.`;
 }
 
+const NETWORK_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "EHOSTUNREACH", "ENETUNREACH"]);
+const NETWORK_MESSAGE = /timeout exceeded when trying to connect|connection timeout|connection terminated/i;
+
 function isNetworkError(e: { code?: string; message?: string }): boolean {
-  return (
-    e.code === "ECONNREFUSED" ||
-    e.code === "ENOTFOUND" ||
-    e.code === "ETIMEDOUT" ||
-    e.code === "EHOSTUNREACH" ||
-    e.code === "ENETUNREACH" ||
-    /timeout exceeded when trying to connect|connection timeout|connection terminated/i.test(e.message ?? "")
-  );
+  return NETWORK_CODES.has(e.code ?? "") || NETWORK_MESSAGE.test(e.message ?? "");
 }
 
 export function formatPgError(error: unknown): string {
@@ -40,15 +39,15 @@ export function formatPgError(error: unknown): string {
       case "25006":
         return "Error: write attempted in a read-only transaction. This server is read-only.";
       case "42P01":
-        return `Error: ${e.message}. Use pg_list_tables to find the right name (names are case-sensitive when quoted).`;
+        return `Error: ${e.message}. Use ${TOOLS.pgListTables} to find the right name (names are case-sensitive when quoted).`;
       case "42703":
-        return `Error: ${e.message}. Use pg_describe_table to see column names. camelCase columns must be double-quoted, e.g. "createdAt".`;
+        return `Error: ${e.message}. Use ${TOOLS.pgDescribeTable} to see column names. camelCase columns must be double-quoted, e.g. "createdAt".`;
       case "ESSH":
         return `Error: ${e.message}. Check SSH_HOST/SSH_USER/SSH_PASSWORD and VPN.`;
       case "28P01":
         return "Error: password authentication failed. Check PGUSER/PGPASSWORD.";
       case "3D000":
-        return `Error: ${e.message}. Use pg_list_databases to see valid names.`;
+        return `Error: ${e.message}. Use ${TOOLS.pgListDatabases} to see valid names.`;
     }
     const pos = e.position ? ` (at char ${e.position})` : "";
     const hint = e.hint ? ` Hint: ${e.hint}` : "";
