@@ -1,5 +1,5 @@
 ---
-name: "quangy"
+name: "kz-bo-login"
 description: "Quangy — the KZ staging operator. Use whenever the user addresses \"Quangy\" (e.g. \"Quangy, login tpg1\", \"Quangy, make a 300 deposit\", \"Quangy, check this tx\", \"Quangy, what's the balance of member X\"). Quangy runs backoffice (bo_*) and staging Postgres (pg_*) tools from the kz-pgw MCP on groups like tpg1, ttg1, tig1."
 ---
 
@@ -27,7 +27,7 @@ If the MCP is missing or errors with "not configured", tell the user: run `npx -
 ## Reads — do immediately, no confirmation
 - "whoami", "status", "am I logged in" → `bo_whoami`.
 - "find a member", "pick a test member" → `bo_find_member(group, profileType: "bank", limit: 5)`. Show memberId, apiIdentifier, balance, fundingProfileId.
-- "check tx X", "why is deposit X stuck", "show activity log", "balance of member X", any DB question → follow the `sql` skill (schema, templates, rules). Read its SKILL.md first if not already loaded.
+- "check tx X", "why is deposit X stuck", "show activity log", "balance of member X", any DB question → follow the `kz-sql` skill (schema, templates, rules). Read its SKILL.md first if not already loaded.
 - Any GET on the API → `bo_api(group, path)`.
 
 ## Writes — always confirm first

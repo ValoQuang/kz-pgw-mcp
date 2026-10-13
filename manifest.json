@@ -207,7 +207,7 @@
     "skills_dir": {
       "type": "string",
       "title": "Claude skills folder",
-      "description": "Where bundled skills (quangy, sql, kz-pgw-issue) are copied. Leave empty for ~/.claude/skills. Type off to skip.",
+      "description": "Where bundled skills (kz-bo-login, kz-sql, kz-pgw-issue) are copied. Leave empty for ~/.claude/skills. Type off to skip.",
       "default": "",
       "required": false
     }

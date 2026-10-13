@@ -124,11 +124,11 @@ A message template for posting to kz-ops-support or relevant channel, tagged wit
 - §5 Symptom → first file. Use the row before guessing.
 - Provider adapter: `src/app/pgw/<provider>-<region>/provider.ts`. `ls src/app/pgw | grep -i <provider>` first.
 
-SQL: follow the `sql` skill — real schema in its `references/schema.md`, templates in `references/queries.md`. Read it before writing any query. Table and column names are camelCase and double-quoted (`"fundingTx"`, `"fundingNotification"`, `"activityLog"`). Do not invent a column.
+SQL: follow the `kz-sql` skill — real schema in its `references/schema.md`, templates in `references/queries.md`. Read it before writing any query. Table and column names are camelCase and double-quoted (`"fundingTx"`, `"fundingNotification"`, `"activityLog"`). Do not invent a column.
 
 ## Key tables
 
-Verified on kz-tpg1 and kz-ttg1, 2026-10-12. Full list in the `sql` skill.
+Verified on kz-tpg1 and kz-ttg1, 2026-10-12. Full list in the `kz-sql` skill.
 
 - **fundingTx**: The transaction record. Columns: `id`, `memberId`, `orderRef` (our order ID), `providerRef` (their order ID), `providerKey`, `method`, `type` (deposit/withdraw/promotion/turnover/adjustment/credit-loss/transfer), `status` (pending/processing/pending-audit/completed/error/timeout/cancelled), `reqAmount`, `netAmount`, `payData` (provider data, jsonb), `rejectReason`, `remark`, `auditType` (auto-audit/manual-audit/no-audit), `auditApprovedAt`, `providerNotifiedAt`, `createdAt`, `completedAt`, `cancelledAt`, `walletTxId`
 - **fundingNotification**: Webhook from the provider. Columns: `id`, `fundingTxId` (can be null), `orderRef`, `providerKey`, `status` (new/processed/error), `payload` (jsonb), `attempts`, `remark` (why it failed), `processedAt`, `createdAt`

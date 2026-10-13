@@ -94,8 +94,8 @@ Auto-installed to `~/.claude/skills/` (configurable) on `install` and on every s
 
 | Skill | Use |
 |---|---|
-| `quangy` | "Quangy, login tpg1 / make a 300 deposit / check this tx" — BO + PG operator |
-| `sql` | Read-only staging SQL. Real schema, enums, query templates (`references/`) |
+| `kz-bo-login` | "Quangy, login tpg1 / make a 300 deposit / check this tx" — BO + PG operator |
+| `kz-sql` | Read-only staging SQL. Real schema, enums, query templates (`references/`) |
 | `kz-pgw-issue` | Diagnose stuck / failed / duplicate deposits and withdrawals |
 
 ## Develop
@@ -140,7 +140,7 @@ src/
     errors.ts         error → one actionable line, VPN nudge
     tools.ts          pg_* tools
   skills/sync.ts      copies skills/ → KZ_SKILLS_DIR
-skills/               bundled Claude skills (quangy, sql, kz-pgw-issue)
+skills/               bundled Claude skills (kz-bo-login, kz-sql, kz-pgw-issue)
 manifest.json         .mcpb user_config form for Claude Desktop
 ```
 

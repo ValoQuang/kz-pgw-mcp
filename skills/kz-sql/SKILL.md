@@ -1,6 +1,6 @@
 ---
-name: sql
-description: Read-only SQL on KZ staging Postgres through the kz-pgw MCP (pg_query, pg_list_tables, pg_describe_table). Use whenever the user wants data from a staging DB — "query", "SQL", "check tx", "find order TPG1X…", "status timeline", "why is deposit stuck", "member balance", "wallet tx", "webhook arrived?", "count deposits by status" — on groups like tpg1, ttg1, tig1, tco, tpk1, tph1, tth1. Also use when another skill (quangy, kz-pgw-issue) needs to write or run SQL against the group DB (kz-tpg1 etc.). Holds the real schema, enum values, joins and query templates, so use it before guessing column names.
+name: kz-sql
+description: Read-only SQL on KZ staging Postgres through the kz-pgw MCP (pg_query, pg_list_tables, pg_describe_table). Use whenever the user wants data from a staging DB — "query", "SQL", "check tx", "find order TPG1X…", "status timeline", "why is deposit stuck", "member balance", "wallet tx", "webhook arrived?", "count deposits by status" — on groups like tpg1, ttg1, tig1, tco, tpk1, tph1, tth1. Also use when another skill (kz-bo-login, kz-pgw-issue) needs to write or run SQL against the group DB (kz-tpg1 etc.). Holds the real schema, enum values, joins and query templates, so use it before guessing column names.
 ---
 
 # SQL — KZ staging read-only queries
@@ -31,7 +31,7 @@ Tool call times out → check Claude Desktop for a pending approval prompt, retr
 - Money columns are `numeric`, returned as strings. Don't round.
 - Never print secrets. Skip or mask: `credential.secret`, `fundingProvider.config`, `activityLog.value` keys containing `secret`, `password`, `token`, `revealedOTP`.
 - PII (email, phone, `accNo`, `bankAccNo`): show only if the user asks for that member.
-- No writes. The MCP blocks them; don't try. Data changes → Quangy (bo_* tools) or BO.
+- No writes. The MCP blocks them; don't try. Data changes → `kz-bo-login` skill (bo_* tools) or BO.
 
 ## Key facts (full detail in references/schema.md)
 - `fundingTx` = deposit/withdraw record. Find by `id`, `"orderRef"` (e.g. `TPG1XFW…`) or `"providerRef"`.
