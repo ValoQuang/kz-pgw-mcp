@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "kz-pgw-mcp",
   "display_name": "KZ Payment Gateway (staging)",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "description": "Staging backoffice API + read-only staging Postgres for KZ payment gateway work.",
   "long_description": "One MCP server for PGW investigation on staging.\n\n- `bo_*` tools: login (with TOTP), find test members, create deposit/withdraw orders, raw API calls against https://api.<group>.trykz.dev\n- `pg_*` tools: read-only SQL, list databases/tables, describe tables on the staging cluster (kz-tpg1, kz-tco, ...)\n\nWrites (deposit/withdraw/non-GET API) are off unless you enable them below.",
   "author": {
