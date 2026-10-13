@@ -16,7 +16,7 @@ export const SECTIONS: Record<Section, string> = {
   pg: "Staging Postgres (pgAdmin → kz-api-global → Properties → Connection)",
   ssh: "SSH tunnel (pgAdmin → SSH Tunnel tab). Empty SSH_HOST = direct connect",
   vpn: "VPN nudge (macOS)",
-  skills: "Claude skills (kz-bo-login, kz-sql, kz-pgw-issue)",
+  skills: "Claude skills (kz-bo-pgw, kz-sql, kz-pgw-issue)",
 };
 
 interface Spec {

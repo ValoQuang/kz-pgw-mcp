@@ -2,8 +2,8 @@
 
 One MCP server for KZ payment-gateway work on **staging** (`*.trykz.dev`). Backoffice API + read-only Postgres + 3 Claude skills that drive them.
 
-- 12 tools: `bo_*` (backoffice) and `pg_*` (Postgres).
-- 3 skills: `kz-bo-login`, `kz-sql`, `kz-pgw-issue`. Auto-copied to `~/.claude/skills/`.
+- 13 tools: `bo_*` (backoffice) and `pg_*` (Postgres).
+- 3 skills: `kz-bo-pgw`, `kz-sql`, `kz-pgw-issue`. Auto-copied to `~/.claude/skills/`.
 - Writes (deposit, withdraw, non-GET API) are **off by default**.
 - Staging only. Needs NordLayer VPN.
 
@@ -130,10 +130,11 @@ node dist/cli.js init && node dist/cli.js doctor && node dist/cli.js install --l
 | `bo_login` | `group` | Starts login with `KZ_USERNAME` / `KZ_PASSWORD`. Finishes TOTP itself if `KZ_TOTP_SECRET_<GROUP>` is set. Returns `totpRequired`, `autoTotp` | — |
 | `bo_submit_totp` | `group`, `totp` (6 digits) | Finishes login when `totpRequired=true` | — |
 | `bo_whoami` | — | Cached sessions, seconds left, `writesEnabled` | — |
+| `bo_check_access` | `group` | Reads `kz-<group>`: may your staff login create deposits / withdraws? Needs `account:deposit-creator` / `account:withdrawal-creator` or `platform:super-admin` | — |
 | `bo_logout` | `group` | Drops the cached token | — |
 | `bo_find_member` | `group`, `minBalance` (1000), `profileType` (`bank` \| `e-wallet`), `limit` (15, max 50) | Members with balance > N and a funding profile. Reads `kz-<group>` DB | — |
-| `bo_create_deposit` | `group`, `memberId`, `fundingProfileId`, `amount`, `method`, `providerRef?`, `remark?`, `memo?`, `date?` | `POST /account/funding/tx/deposit`. Real tx on staging | **Yes** |
-| `bo_create_withdraw` | `group`, `memberId`, `fundingProfileId`, `amount`, `method?`, `remark?`, `memo?` | `POST /account/funding/tx/withdraw`. May land in `pending-audit`. Needs `account:withdrawal-creator` | **Yes** |
+| `bo_create_deposit` | `group`, `memberId`, `fundingProfileId`, `amount`, `method`, `providerRef?`, `remark?`, `memo?`, `date?` | `POST /account/funding/tx/deposit`. Real tx on staging. Stops first if you lack `account:deposit-creator` | **Yes** |
+| `bo_create_withdraw` | `group`, `memberId`, `fundingProfileId`, `amount`, `method?`, `remark?`, `memo?` | `POST /account/funding/tx/withdraw`. May land in `pending-audit`. Stops first if you lack `account:withdrawal-creator` | **Yes** |
 | `bo_api` | `group`, `method` (GET), `path`, `body?` | Any kz-api path with the cached token. GET always allowed | Non-GET only |
 
 Login flow: `bo_login` → if `totpRequired` and not `autoTotp`, get the code → `bo_submit_totp`. Tokens last about 24 h.
@@ -155,11 +156,23 @@ Login flow: `bo_login` → if `totpRequired` and not `autoTotp`, get the code �
 
 | Skill | Say this | Does |
 |---|---|---|
-| `kz-bo-login` | "login tpg1" / "make a 300 deposit on tpg1" / "find a test member" | BO + PG operator. Handles login and TOTP. Confirms every write in one line before running it |
+| `kz-bo-pgw` | "login tpg1" / "make a 300 deposit on tpg1" / "find a test member" | BO + PG operator. Handles login and TOTP. Confirms every write in one line before running it |
 | `kz-sql` | "check tx TPG1XFW…" / "status timeline of …" / "count deposits by status on ttg1" | Read-only SQL. Real schema, enums, 14 query templates in `references/` |
 | `kz-pgw-issue` | "analyze this PGW issue: …" / "why is withdraw X stuck?" | Diagnoses stuck, failed, duplicate or early-settled deposits / withdrawals. Outputs root cause, client actions, SQL, Slack draft |
 
-### `kz-bo-login`
+### `kz-bo-pgw`
+
+Backoffice operator for PGW testing on staging.
+
+| Say | Does | Tool |
+|---|---|---|
+| "login tpg1" / "am I logged in" | Login + TOTP, or show sessions and time left | `bo_login`, `bo_submit_totp`, `bo_whoami` |
+| "find a test member" | Members with balance > 1000 and a bank profile | `bo_find_member` |
+| "can I deposit on tpg1?" | Your write privileges on that group, from the DB | `bo_check_access` |
+| "make a 300 deposit on tpg1" | Checks privilege → create a deposit (confirms first) | `bo_check_access`, `bo_create_deposit` |
+| "withdraw 200 for member X" | Checks privilege → create a withdraw, may land in `pending-audit` (confirms first) | `bo_create_withdraw` |
+| "GET /account/funding/tx?memberId=…" | Any backoffice endpoint not wrapped yet | `bo_api` |
+| "check tx X" / "balance of member X" | Hands off to `kz-sql` | `pg_*` |
 
 - Defaults: group `tpg1`, method `cpay-2/bank-transfer`, profile type `bank`.
 - Reads run at once. Writes show `Create deposit: <amount> via <method> on <group> → member … ok?` and wait for "ok" / "yes" / "go".
@@ -238,7 +251,7 @@ yarn install && yarn build
 |---|---|
 | `yarn dev` | Run from source with tsx |
 | `yarn check` | SQL guard tests |
-| `node scripts/smoke.mjs` | No creds: 12 tools listed, write gate, missing-config messages |
+| `node scripts/smoke.mjs` | No creds: 13 tools listed, write gate, missing-config messages |
 | `node scripts/smoke.mjs --live` | Uses `~/.config/kz-pgw/.env`, needs VPN |
 | `yarn inspect` | MCP Inspector |
 
@@ -273,7 +286,7 @@ src/
     errors.ts         error → one actionable line, VPN nudge
     tools.ts          pg_* tools
   skills/sync.ts      copies skills/ → KZ_SKILLS_DIR
-skills/               bundled Claude skills (kz-bo-login, kz-sql, kz-pgw-issue)
+skills/               bundled Claude skills (kz-bo-pgw, kz-sql, kz-pgw-issue)
 manifest.json         .mcpb user_config form for Claude Desktop
 ```
 
@@ -301,6 +314,7 @@ Local `.mcpb`: `yarn mcpb` → `dist-mcpb/kz-pgw-mcp.mcpb` (~10 MB, bundles `nod
 
 ## Security
 
-- Ask DevOps for a `SELECT`-only Postgres role for `PGUSER`. The server blocks writes twice; a read-only role removes the risk.
+- **DB role:** use `kz_pgw_ro` for `PGUSER`, never the `kz-api` app role. DevOps creates it with [docs/security/readonly-role.sql](docs/security/readonly-role.sql): `SELECT` only, sessions read-only by default, secret columns hidden (`credential.secret`, `fundingProvider.config`, `smsProvider.config`, `passwordRequest.code`, `platformInvite.token`). `doctor` prints `db role: read-only` or a warning listing extra powers.
+- **Who can write:** nobody writes the DB through this MCP. Deposits / withdrawals go through the BO API as your own staff account (password + TOTP). Before sending, `bo_create_deposit` / `bo_create_withdraw` read your privileges from `kz-<group>` (`entityHasPrivilege`, same source kz-api uses) and stop if you lack `account:deposit-creator` / `account:withdrawal-creator`. kz-api checks again on the server.
 - `bo_create_deposit` / `bo_create_withdraw` create real staging transactions. Keep `KZ_PGW_ALLOW_WRITES` off unless you need it that day.
 - Private package (GitHub Packages, `access: restricted`). Credentials stay on your machine: `~/.config/kz-pgw/.env` (600) or the OS keychain via `.mcpb`.

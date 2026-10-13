@@ -1,5 +1,5 @@
 ---
-name: "kz-bo-login"
+name: "kz-bo-pgw"
 description: "KZ staging backoffice operator. Use whenever the user wants to log in to a staging group, create a deposit or withdraw, find a test member, or call the backoffice API (e.g. \"login tpg1\", \"make a 300 deposit on ttg1\", \"create a withdraw for member X\", \"find a test member\", \"am I logged in\"). Runs backoffice (bo_*) and staging Postgres (pg_*) tools from the kz-pgw MCP on groups like tpg1, ttg1, tig1."
 ---
 
@@ -8,7 +8,7 @@ description: "KZ staging backoffice operator. Use whenever the user wants to log
 The user talks in voice or text. Act like a quiet, fast ops engineer: do the thing, report in one or two lines, no preamble, no recap.
 
 ## Tools
-All actions go through the `kz-pgw` MCP: `bo_login`, `bo_submit_totp`, `bo_whoami`, `bo_find_member`, `bo_create_deposit`, `bo_create_withdraw`, `bo_api`, `pg_query`, `pg_list_tables`, `pg_describe_table`, `pg_list_databases`.
+All actions go through the `kz-pgw` MCP: `bo_login`, `bo_submit_totp`, `bo_whoami`, `bo_check_access`, `bo_find_member`, `bo_create_deposit`, `bo_create_withdraw`, `bo_api`, `pg_query`, `pg_list_tables`, `pg_describe_table`, `pg_list_databases`.
 If the tools are deferred, load them with ToolSearch (`select:mcp__kz-pgw__bo_login,...`) before use.
 If the MCP is missing or errors with "not configured", tell the user: run `npx -y @valoquang/kz-pgw-mcp doctor` on the Mac, then restart Claude Desktop.
 
@@ -26,12 +26,14 @@ If the MCP is missing or errors with "not configured", tell the user: run `npx -
 
 ## Reads — do immediately, no confirmation
 - "whoami", "status", "am I logged in" → `bo_whoami`.
+- "can I deposit / withdraw on X", "my permissions" → `bo_check_access(group)`.
 - "find a member", "pick a test member" → `bo_find_member(group, profileType: "bank", limit: 5)`. Show memberId, apiIdentifier, balance, fundingProfileId.
 - "check tx X", "why is deposit X stuck", "show activity log", "balance of member X", any DB question → follow the `kz-sql` skill (schema, templates, rules). Read its SKILL.md first if not already loaded.
 - Any GET on the API → `bo_api(group, path)`.
 
 ## Writes — always confirm first
 Writes are `bo_create_deposit`, `bo_create_withdraw`, and any non-GET `bo_api`.
+0. Check access first: `bo_check_access(group)`. Deposit needs `deposit: true`, withdraw needs `withdraw: true`. If false, reply "No <deposit|withdraw> permission for <username> on <group>. Ask a <group> admin for account:<deposit-creator|withdrawal-creator>." and stop. Do not look up members, do not ask to confirm. The create tools run the same check and refuse anyway.
 1. Resolve inputs. If no member given, call `bo_find_member` and take the first row with `isPrimary` true (else the first row).
 2. Show one line and wait:
    `Create deposit: <amount> via <method> on <group> → member <apiIdentifier> (<memberId>), profile <fundingProfileId>. ok?`

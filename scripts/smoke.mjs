@@ -1,5 +1,5 @@
 // Stdio smoke test. Two modes:
-//   node scripts/smoke.mjs            → no creds needed: server starts, lists 12 tools, write tools are gated, pg_query reports missing config
+//   node scripts/smoke.mjs            → no creds needed: server starts, lists 13 tools, write tools are gated, pg_query reports missing config
 //   node scripts/smoke.mjs --live     → uses ~/.config/kz-pgw/.env: runs SELECT 1, list tables, write must be rejected
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
@@ -58,7 +58,7 @@ try {
 
   const tools = (await send("tools/list", {})).result.tools.map((t) => t.name).sort();
   const want = [
-    "bo_api", "bo_create_deposit", "bo_create_withdraw", "bo_find_member", "bo_login", "bo_logout", "bo_submit_totp", "bo_whoami",
+    "bo_api", "bo_check_access", "bo_create_deposit", "bo_create_withdraw", "bo_find_member", "bo_login", "bo_logout", "bo_submit_totp", "bo_whoami",
     "pg_describe_table", "pg_list_databases", "pg_list_tables", "pg_query",
   ];
   expect(`tools/list has ${want.length} tools`, JSON.stringify(tools) === JSON.stringify(want), tools.join(", "));

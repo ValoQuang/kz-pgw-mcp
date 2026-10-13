@@ -38,6 +38,52 @@ function writeGate(): ToolResult | null {
 
 const nowS = (): number => Math.floor(Date.now() / 1000);
 
+/**
+ * kz-api privileges for each write (routes/api/account/funding/tx/index.ts).
+ * platform:super-admin passes every check (app/auth/access.ts verifyPrivilege).
+ */
+const PRIV = { deposit: "deposit-creator", withdraw: "withdrawal-creator" } as const;
+type WriteKind = keyof typeof PRIV;
+const SUPER_ADMIN = "platform:super-admin";
+
+/** Privileges of the configured staff login, read from the group DB. Same source kz-api uses: entityHasPrivilege. */
+const ACCESS_SQL = `
+SELECT p.domain || ':' || p.name AS privilege
+FROM credential c
+JOIN entity e ON e.id = c."entityId" AND e."deletedAt" IS NULL
+JOIN "entityHasPrivilege" ehp ON ehp."entityId" = e.id
+JOIN privilege p ON p.id = ehp."privilegeId"
+WHERE c."accessKey" = $1
+  AND c.type = 'password'
+  AND c."deletedAt" IS NULL
+  AND ((p.domain = 'account' AND p.name = ANY($2)) OR (p.domain || ':' || p.name = $3))`;
+
+interface Access {
+  group: string;
+  username: string;
+  database: string;
+  deposit: boolean;
+  withdraw: boolean;
+  privileges: string[];
+}
+
+async function checkAccess(group: string): Promise<Access> {
+  const { username } = cfg.credentials();
+  const database = pgCfg.databaseForGroup(group);
+  const rows = await queryRows<{ privilege: string }>(ACCESS_SQL, [username, Object.values(PRIV), SUPER_ADMIN], database);
+  const privileges = rows.map((r) => r.privilege);
+  const has = (k: WriteKind) => privileges.includes(SUPER_ADMIN) || privileges.includes(`account:${PRIV[k]}`);
+  return { group, username, database, deposit: has("deposit"), withdraw: has("withdraw"), privileges };
+}
+
+/** Write tools stop here unless the staff login holds the privilege on this group. Nothing is sent to the API. */
+async function privilegeGate(group: string, kind: WriteKind): Promise<ToolResult | null> {
+  const a = await checkAccess(group);
+  return a[kind]
+    ? null
+    : fail(`Stopped: ${a.username} has no account:${PRIV[kind]} on ${group} (checked ${a.database}). Nothing was sent. Ask a ${group} admin to grant it.`);
+}
+
 interface MemberRow {
   memberId: string;
   apiIdentifier: string;
@@ -120,6 +166,20 @@ Returns: { group, loggedIn, expiresAt }`,
   );
 
   server.registerTool(
+    TOOLS.boCheckAccess,
+    {
+      title: "Check write privileges",
+      description: `Reads the group DB (kz-{group}) and reports whether the configured staff login (KZ_USERNAME) may create deposits / withdraws there.
+Needs account:${PRIV.deposit} / account:${PRIV.withdraw}, or ${SUPER_ADMIN}. No login needed.
+Call before offering a write. ${TOOLS.boCreateDeposit} / ${TOOLS.boCreateWithdraw} run the same check and stop if it fails.
+Returns: { group, username, database, deposit, withdraw, privileges }`,
+      inputSchema: { group },
+      annotations: HINTS.readRemote,
+    },
+    safely(async ({ group: g }) => ok(await checkAccess(g)), formatPgError),
+  );
+
+  server.registerTool(
     TOOLS.boLogout,
     {
       title: "Drop a cached session",
@@ -161,6 +221,7 @@ Returns: { count, members: [{ memberId, apiIdentifier, balance, fundingProfileId
       title: "Create a deposit order (backoffice)",
       description: `POST ${PATH.deposit} on the group API. Creates a real deposit fundingTx on staging.
 Confirm memberId, fundingProfileId, amount and method with the user before calling.
+Stops without calling the API unless the staff login has account:${PRIV.deposit} on the group (see ${TOOLS.boCheckAccess}).
 Args:
   - method: exact provider/method string, e.g. "cpay-2/bank-transfer"
   - date: unix seconds; defaults to now
@@ -179,7 +240,7 @@ Returns: { request, response } — response contains the created tx.${gateNote}`
       annotations: HINTS.create,
     },
     safely(async ({ group: g, memberId, fundingProfileId, amount, method, providerRef, remark, memo, date }) => {
-      const gate = writeGate();
+      const gate = writeGate() ?? (await privilegeGate(g, "deposit"));
       if (gate) return gate;
       const body = {
         memberId,
@@ -200,7 +261,7 @@ Returns: { request, response } — response contains the created tx.${gateNote}`
     {
       title: "Create a withdraw order (backoffice)",
       description: `POST ${PATH.withdraw} on the group API. Creates a real withdraw fundingTx on staging
-(may land in pending-audit). Needs privilege account:withdrawal-creator.
+(may land in pending-audit). Stops without calling the API unless the staff login has account:${PRIV.withdraw} on the group (see ${TOOLS.boCheckAccess}).
 Confirm memberId, fundingProfileId and amount with the user before calling.
 Args:
   - method: optional FundingMethodKey, e.g. "cpay-2/bank-transfer". Omit to let the API pick.
@@ -217,7 +278,7 @@ Returns: { request, response } — response.result.model is the created tx.${gat
       annotations: HINTS.create,
     },
     safely(async ({ group: g, memberId, fundingProfileId, amount, method, remark, memo }) => {
-      const gate = writeGate();
+      const gate = writeGate() ?? (await privilegeGate(g, "withdraw"));
       if (gate) return gate;
       const body: Record<string, unknown> = { memberId, amount, fundingProfileId, remark: remark ?? "", memo: memo ?? "" };
       if (method) body.method = method;

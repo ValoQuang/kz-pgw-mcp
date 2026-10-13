@@ -63,6 +63,10 @@
       "description": "Show cached sessions"
     },
     {
+      "name": "bo_check_access",
+      "description": "Can this staff login create deposits / withdraws on the group? (DB read)"
+    },
+    {
       "name": "bo_logout",
       "description": "Drop a cached session"
     },
@@ -207,7 +211,7 @@
     "skills_dir": {
       "type": "string",
       "title": "Claude skills folder",
-      "description": "Where bundled skills (kz-bo-login, kz-sql, kz-pgw-issue) are copied. Leave empty for ~/.claude/skills. Type off to skip.",
+      "description": "Where bundled skills (kz-bo-pgw, kz-sql, kz-pgw-issue) are copied. Leave empty for ~/.claude/skills. Type off to skip.",
       "default": "",
       "required": false
     }

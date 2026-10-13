@@ -15,6 +15,7 @@ export const TOOLS = {
   boLogin: "bo_login",
   boSubmitTotp: "bo_submit_totp",
   boWhoami: "bo_whoami",
+  boCheckAccess: "bo_check_access",
   boLogout: "bo_logout",
   boFindMember: "bo_find_member",
   boCreateDeposit: "bo_create_deposit",
