@@ -12,9 +12,9 @@ import { queryRows } from "../pg/db.js";
 import { formatPgError } from "../pg/errors.js";
 import { apiCall } from "./api.js";
 import { login, logout, status, submitTotp } from "./auth.js";
+import { BO_PATH, normalizePath, WRITE_PATHS, writeTarget, type WriteKind } from "./paths.js";
 
 const WRITE_KEY: EnvKey = "KZ_PGW_ALLOW_WRITES";
-const PATH = { deposit: "/account/funding/tx/deposit", withdraw: "/account/funding/tx/withdraw" } as const;
 
 /** Normalised to lower case before validation. */
 const group = z
@@ -42,8 +42,7 @@ const nowS = (): number => Math.floor(Date.now() / 1000);
  * kz-api privileges for each write (routes/api/account/funding/tx/index.ts).
  * platform:super-admin passes every check (app/auth/access.ts verifyPrivilege).
  */
-const PRIV = { deposit: "deposit-creator", withdraw: "withdrawal-creator" } as const;
-type WriteKind = keyof typeof PRIV;
+const PRIV: Record<WriteKind, string> = { deposit: "deposit-creator", withdraw: "withdrawal-creator" };
 const SUPER_ADMIN = "platform:super-admin";
 
 /** Privileges of the configured staff login, read from the group DB. Same source kz-api uses: entityHasPrivilege. */
@@ -149,7 +148,7 @@ Returns: { group, loggedIn, expiresAt }`,
         group,
         totp: z.string().regex(/^\d{6}$/, "6 digits").describe("6-digit code from the authenticator app"),
       },
-      annotations: HINTS.create,
+      annotations: HINTS.auth,
     },
     safely(async ({ group: g, totp }) => ok({ group: g, loggedIn: true, expiresAt: (await submitTotp(g, totp)).expiresAt })),
   );
@@ -219,7 +218,7 @@ Returns: { count, members: [{ memberId, apiIdentifier, balance, fundingProfileId
     TOOLS.boCreateDeposit,
     {
       title: "Create a deposit order (backoffice)",
-      description: `POST ${PATH.deposit} on the group API. Creates a real deposit fundingTx on staging.
+      description: `POST ${BO_PATH.deposit} on the group API. Creates a real deposit fundingTx on staging.
 Confirm memberId, fundingProfileId, amount and method with the user before calling.
 Stops without calling the API unless the staff login has account:${PRIV.deposit} on the group (see ${TOOLS.boCheckAccess}).
 Args:
@@ -237,7 +236,7 @@ Returns: { request, response } — response contains the created tx.${gateNote}`
         memo: optionalText,
         date: z.number().int().optional().describe("Unix seconds. Default: now"),
       },
-      annotations: HINTS.create,
+      annotations: HINTS.write,
     },
     safely(async ({ group: g, memberId, fundingProfileId, amount, method, providerRef, remark, memo, date }) => {
       const gate = writeGate() ?? (await privilegeGate(g, "deposit"));
@@ -252,7 +251,7 @@ Returns: { request, response } — response contains the created tx.${gateNote}`
         memo: memo ?? "",
         method,
       };
-      return ok({ request: body, response: await apiCall(g, "POST", PATH.deposit, body) });
+      return ok({ request: body, response: await apiCall(g, "POST", BO_PATH.deposit, body) });
     }),
   );
 
@@ -260,7 +259,7 @@ Returns: { request, response } — response contains the created tx.${gateNote}`
     TOOLS.boCreateWithdraw,
     {
       title: "Create a withdraw order (backoffice)",
-      description: `POST ${PATH.withdraw} on the group API. Creates a real withdraw fundingTx on staging
+      description: `POST ${BO_PATH.withdraw} on the group API. Creates a real withdraw fundingTx on staging
 (may land in pending-audit). Stops without calling the API unless the staff login has account:${PRIV.withdraw} on the group (see ${TOOLS.boCheckAccess}).
 Confirm memberId, fundingProfileId and amount with the user before calling.
 Args:
@@ -275,14 +274,14 @@ Returns: { request, response } — response.result.model is the created tx.${gat
         remark: optionalText,
         memo: optionalText,
       },
-      annotations: HINTS.create,
+      annotations: HINTS.write,
     },
     safely(async ({ group: g, memberId, fundingProfileId, amount, method, remark, memo }) => {
       const gate = writeGate() ?? (await privilegeGate(g, "withdraw"));
       if (gate) return gate;
       const body: Record<string, unknown> = { memberId, amount, fundingProfileId, remark: remark ?? "", memo: memo ?? "" };
       if (method) body.method = method;
-      return ok({ request: body, response: await apiCall(g, "POST", PATH.withdraw, body) });
+      return ok({ request: body, response: await apiCall(g, "POST", BO_PATH.withdraw, body) });
     }),
   );
 
@@ -290,9 +289,10 @@ Returns: { request, response } — response.result.model is the created tx.${gat
     TOOLS.boApi,
     {
       title: "Raw authenticated API call",
-      description: `Escape hatch: call any kz-api path on the group with the cached bearer token.
-Use for endpoints not yet wrapped (approve, lookups). GET always allowed.
-Non-GET methods need ${WRITE_KEY}=true${writes ? " (currently enabled)" : " (currently DISABLED)"}. Confirm with the user before non-GET calls.
+      description: `Escape hatch: call a kz-api path on the group with the cached bearer token.
+GET: any path (lookups, lists, details).
+Non-GET: only POST ${Object.keys(WRITE_PATHS).join(", ")}, with the same privilege check as ${TOOLS.boCreateDeposit} / ${TOOLS.boCreateWithdraw}. Everything else (adjust, approve, reject, privileges, settings) is refused: use the BO web app.
+Non-GET also needs ${WRITE_KEY}=true${writes ? " (currently enabled)" : " (currently DISABLED)"}. Confirm with the user first.
 Returns: raw response.`,
       inputSchema: {
         group,
@@ -303,8 +303,18 @@ Returns: raw response.`,
       annotations: HINTS.raw,
     },
     safely(async ({ group: g, method, path, body }) => {
-      const gate = method === "GET" ? null : writeGate();
-      return gate ?? ok(await apiCall(g, method, path, body));
+      const { pathname, search } = normalizePath(path);
+      if (method !== "GET") {
+        const gate = writeGate();
+        if (gate) return gate;
+        const kind = writeTarget(method, pathname);
+        if (!kind) {
+          return fail(`${method} ${pathname} is not allowed. Non-GET ${TOOLS.boApi} only allows POST ${Object.keys(WRITE_PATHS).join(", ")}. Use the BO web app for anything else.`);
+        }
+        const denied = await privilegeGate(g, kind);
+        if (denied) return denied;
+      }
+      return ok(await apiCall(g, method, pathname + search, body));
     }),
   );
 }

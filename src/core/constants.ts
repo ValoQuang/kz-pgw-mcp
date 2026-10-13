@@ -62,8 +62,8 @@ export const HINTS = {
   session: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   /** Auth call to a remote system. */
   auth: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-  /** Creates data on a remote system. */
-  create: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  /** Creates real data on a remote system (deposit, withdraw). */
+  write: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   /** Arbitrary remote call. */
   raw: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
 } as const;

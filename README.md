@@ -135,7 +135,7 @@ node dist/cli.js init && node dist/cli.js doctor && node dist/cli.js install --l
 | `bo_find_member` | `group`, `minBalance` (1000), `profileType` (`bank` \| `e-wallet`), `limit` (15, max 50) | Members with balance > N and a funding profile. Reads `kz-<group>` DB | — |
 | `bo_create_deposit` | `group`, `memberId`, `fundingProfileId`, `amount`, `method`, `providerRef?`, `remark?`, `memo?`, `date?` | `POST /account/funding/tx/deposit`. Real tx on staging. Stops first if you lack `account:deposit-creator` | **Yes** |
 | `bo_create_withdraw` | `group`, `memberId`, `fundingProfileId`, `amount`, `method?`, `remark?`, `memo?` | `POST /account/funding/tx/withdraw`. May land in `pending-audit`. Stops first if you lack `account:withdrawal-creator` | **Yes** |
-| `bo_api` | `group`, `method` (GET), `path`, `body?` | Any kz-api path with the cached token. GET always allowed | Non-GET only |
+| `bo_api` | `group`, `method` (GET), `path`, `body?` | GET: any kz-api path. Non-GET: only `POST /account/funding/tx/deposit` and `/withdraw`, with the same privilege check. Adjust, approve, reject, privileges, settings → refused, use the BO web app | Non-GET only |
 
 Login flow: `bo_login` → if `totpRequired` and not `autoTotp`, get the code → `bo_submit_totp`. Tokens last about 24 h.
 
@@ -171,7 +171,7 @@ Backoffice operator for PGW testing on staging.
 | "can I deposit on tpg1?" | Your write privileges on that group, from the DB | `bo_check_access` |
 | "make a 300 deposit on tpg1" | Checks privilege → create a deposit (confirms first) | `bo_check_access`, `bo_create_deposit` |
 | "withdraw 200 for member X" | Checks privilege → create a withdraw, may land in `pending-audit` (confirms first) | `bo_create_withdraw` |
-| "GET /account/funding/tx?memberId=…" | Any backoffice endpoint not wrapped yet | `bo_api` |
+| "GET /account/funding/tx?memberId=…" | Any backoffice read not wrapped yet | `bo_api` |
 | "check tx X" / "balance of member X" | Hands off to `kz-sql` | `pg_*` |
 
 - Defaults: group `tpg1`, method `cpay-2/bank-transfer`, profile type `bank`.
@@ -314,7 +314,8 @@ Local `.mcpb`: `yarn mcpb` → `dist-mcpb/kz-pgw-mcp.mcpb` (~10 MB, bundles `nod
 
 ## Security
 
-- **DB role:** use `kz_pgw_ro` for `PGUSER`, never the `kz-api` app role. DevOps creates it with [docs/security/readonly-role.sql](docs/security/readonly-role.sql): `SELECT` only, sessions read-only by default, secret columns hidden (`credential.secret`, `fundingProvider.config`, `smsProvider.config`, `passwordRequest.code`, `platformInvite.token`). `doctor` prints `db role: read-only` or a warning listing extra powers.
+- **DB login:** `PGUSER` is your own existing staging login. Devs may have write access; QA use their read-only account. Either way the MCP itself is read-only: SQL keyword guard + `BEGIN READ ONLY` + 30 s timeout.
+- **Prompt injection:** DB rows and webhooks can carry text aimed at Claude. Limits: non-GET `bo_api` only reaches deposit / withdraw; write tools are marked destructive. Never set `bo_create_*` or `bo_api` to "always allow" in Claude permissions, so you see every write before it runs.
 - **Who can write:** nobody writes the DB through this MCP. Deposits / withdrawals go through the BO API as your own staff account (password + TOTP). Before sending, `bo_create_deposit` / `bo_create_withdraw` read your privileges from `kz-<group>` (`entityHasPrivilege`, same source kz-api uses) and stop if you lack `account:deposit-creator` / `account:withdrawal-creator`. kz-api checks again on the server.
 - `bo_create_deposit` / `bo_create_withdraw` create real staging transactions. Keep `KZ_PGW_ALLOW_WRITES` off unless you need it that day.
 - Private package (GitHub Packages, `access: restricted`). Credentials stay on your machine: `~/.config/kz-pgw/.env` (600) or the OS keychain via `.mcpb`.

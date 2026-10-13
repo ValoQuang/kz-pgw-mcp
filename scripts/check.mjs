@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 
 import { guardSql, stripComments } from "../dist/pg/guard.js";
+import { normalizePath, writeTarget } from "../dist/bo/paths.js";
 
 const allow = [
   "SELECT 1",
@@ -46,3 +47,20 @@ assert.equal(guardSql("explain select 1").wrappable, false);
 assert.equal(guardSql("select 1").wrappable, true);
 
 console.log(`guard ok: ${allow.length} allowed, ${deny.length} denied`);
+
+// ---------- bo_api paths ----------
+const target = (m, p) => writeTarget(m, normalizePath(p).pathname);
+assert.equal(target("POST", "/account/funding/tx/deposit"), "deposit");
+assert.equal(target("POST", "/account/funding/tx/withdraw/"), "withdraw");
+assert.equal(target("POST", "/account/funding/tx/deposit?x=1"), "deposit");
+assert.equal(target("POST", "/account/funding/tx/adjust"), null);
+assert.equal(target("POST", "/account/funding/tx/deposit/../adjust"), null);
+assert.equal(target("POST", "/account/funding/tx/x/%2e%2e/adjust"), null);
+assert.equal(target("POST", "/account/funding/tx/x/%2e%2e/deposit"), "deposit"); // resolves to the real path
+assert.equal(target("POST", "/account%2Ffunding/tx/deposit"), null);
+assert.equal(target("PUT", "/account/funding/tx/deposit"), null);
+assert.equal(target("DELETE", "/account/funding/tx/withdraw"), null);
+assert.throws(() => normalizePath("//evil.com/x"));
+assert.throws(() => normalizePath("/\\evil.com/x"));
+assert.equal(normalizePath("/account/funding/tx?memberId=a").search, "?memberId=a");
+console.log("bo_api paths ok");
