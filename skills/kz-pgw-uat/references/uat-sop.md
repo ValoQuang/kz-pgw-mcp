@@ -1,0 +1,50 @@
+# PGW UAT SOP: 6 cases
+
+Source: SOP OS-52 "Payment Gateway Integration Guide" → UAT Test Cases.
+KZ (dev + PA) and the client must both pass all 6 before the PR is merged to staging.
+UAT groups today: `tpg1`, `ttg1`, `tig1`.
+
+## Before UAT (dev)
+- Provider + methods created on the group (`create-payment-controls`). Banks / e-wallets only if new (`upsert-bank-list`, `upsert-ewallet-config`).
+- BO → Integration settings (group level): provider shows, every field filled.
+- Dev made one deposit in MP and it reached the provider page. Do not hand off before this.
+- PA reviewed the cases below with dev.
+
+## The 6 cases
+
+Every case must be run by the client as a player in the Member Portal (MP). Orders made by staff in BO do not count.
+
+| # | Case | How to run | Pass when |
+|---|---|---|---|
+| C1 | Deposit success | MP → Top up → pick provider → pay the full amount on the provider page | Order `completed` after the provider callback. Balance + amount. Order is in BO Deposit tab |
+| C2 | Deposit rejected | MP → Top up → reject / fail the payment on the provider side | Order `error` after the provider callback. Balance unchanged |
+| C3 | Withdraw success | MP → Withdraw to a bank / e-wallet the provider supports → provider approves | Order `completed` after the provider callback. Balance − amount |
+| C4 | Withdraw rejected | MP → Withdraw → provider rejects it | Order `pending-audit` (back to staff audit), not `error`. Balance not lost |
+| C5 | Paid ≠ entered amount | MP → enter 100 → pay 50 on the provider page (only if the provider allows it) | Credited = amount really paid (`netAmount`), never the entered amount. Paid more than entered → tell dev now |
+| C6 | 3rd balance | BO → Integration settings → provider balance | Same as the balance in the provider's own BO |
+
+Also for every case:
+- Order processed within 2 min of the callback. Slower → kz-event-processor not redeployed or stuck.
+- Provider can reject both a deposit and a withdraw.
+- Currency factor: amount in KZ BO = amount in provider BO (no cents / ×100 mix-up).
+- Test the deposit page on Chrome and Safari iOS.
+
+## Extra cases (add when they apply)
+| When | Case |
+|---|---|
+| `creditReqAmount` on | Pay less than entered (within 1 unit) → credit stays inside tolerance |
+| MX | Reused CLABE: second payment to the same CLABE does not credit twice |
+| New region | Payment page in iframe vs new tab works |
+| PH, TH | Special characters in member name |
+| Google-login region | Member with no phone → dummy phone fallback |
+| Payload has time fields | Order not rejected for timezone |
+| Provider sends Expired | Maps to `timeout` |
+
+## How to verify
+- Whole UAT: "verify UAT for `<provider>` on `<group>` since `<date>`" → PASS / PENDING / FAIL per case (`kz-pgw-uat` skill).
+- One order: ask "check tx `<orderRef>` on `<group>`" (status, callback, wallet credit).
+- Stuck or wrong order: ask "analyze `<orderRef>` on `<group>`".
+
+## After UAT
+- PASS → request PR approval → project lead merges to staging.
+- Deploy: tell DevOps the scripts to run and to redeploy kz-event-processor.

@@ -1,9 +1,9 @@
 # @valoquang/kz-pgw-mcp
 
-One MCP server for KZ payment-gateway work on **staging** (`*.trykz.dev`). Backoffice API + read-only Postgres + 3 Claude skills that drive them.
+One MCP server for KZ payment-gateway work on **staging** (`*.trykz.dev`). Backoffice API + read-only Postgres + 4 Claude skills that drive them.
 
 - 13 tools: `bo_*` (backoffice) and `pg_*` (Postgres).
-- 3 skills: `kz-bo-pgw`, `kz-sql`, `kz-pgw-issue`. Auto-copied to `~/.claude/skills/`.
+- 4 skills: `kz-bo-pgw`, `kz-sql`, `kz-pgw-issue`, `kz-pgw-uat`. Auto-copied to `~/.claude/skills/`.
 - Writes (deposit, withdraw, non-GET API) are **off by default**.
 - Staging only. Needs NordLayer VPN.
 
@@ -159,6 +159,7 @@ Login flow: `bo_login` → if `totpRequired` and not `autoTotp`, get the code �
 | `kz-bo-pgw` | "login tpg1" / "make a 300 deposit on tpg1" / "find a test member" | BO + PG operator. Handles login and TOTP. Confirms every write in one line before running it |
 | `kz-sql` | "check tx TPG1XFW…" / "status timeline of …" / "count deposits by status on ttg1" | Read-only SQL. Real schema, enums, 14 query templates in `references/` |
 | `kz-pgw-issue` | "analyze this PGW issue: …" / "why is withdraw X stuck?" | Diagnoses stuck, failed, duplicate or early-settled deposits / withdrawals. Outputs root cause, client actions, SQL, Slack draft |
+| `kz-pgw-uat` | "what are the UAT cases?" / "verify UAT for cpay-2 on tpg1 since 2026-10-20" | Shows the 6-case UAT SOP (OS-52). Maps the client's orders to the cases, gives PASS / PENDING / FAIL |
 
 ### `kz-bo-pgw`
 
@@ -200,6 +201,21 @@ Analyze this PGW issue:
 ```
 
 It reads the `activityLog` status timeline first, then `fundingTx`, then `fundingNotification` webhooks, and maps the pattern to a cause.
+
+### `kz-pgw-uat`
+
+UAT passes only when the client ran every case in the Member Portal. Staff-made orders never count.
+
+| # | Case | Pass when |
+|---|---|---|
+| C1 | Deposit success | `completed` after callback |
+| C2 | Deposit rejected | `error` after callback |
+| C3 | Withdraw success | `completed` after callback |
+| C4 | Withdraw rejected | `pending-audit` after callback |
+| C5 | Paid ≠ entered amount | credited = paid amount (`netAmount`) |
+| C6 | 3rd balance | BO balance = provider BO balance |
+
+Full SOP (how to run each case, region extras, before / after UAT): [`skills/kz-pgw-uat/references/uat-sop.md`](skills/kz-pgw-uat/references/uat-sop.md).
 
 ### Where skills go
 
@@ -286,7 +302,7 @@ src/
     errors.ts         error → one actionable line, VPN nudge
     tools.ts          pg_* tools
   skills/sync.ts      copies skills/ → KZ_SKILLS_DIR
-skills/               bundled Claude skills (kz-bo-pgw, kz-sql, kz-pgw-issue)
+skills/               bundled Claude skills (kz-bo-pgw, kz-sql, kz-pgw-issue, kz-pgw-uat)
 manifest.json         .mcpb user_config form for Claude Desktop
 ```
 
