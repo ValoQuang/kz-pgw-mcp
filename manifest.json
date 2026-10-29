@@ -3,8 +3,8 @@
   "name": "kz-pgw-mcp",
   "display_name": "KZ Payment Gateway (staging)",
   "version": "0.1.6",
-  "description": "Staging backoffice API + read-only staging Postgres for KZ payment gateway work.",
-  "long_description": "One MCP server for PGW investigation on staging.\n\n- `bo_*` tools: login (with TOTP), find test members, create deposit/withdraw orders, raw API calls against https://api.<group>.trykz.dev\n- `pg_*` tools: read-only SQL, list databases/tables, describe tables on the staging cluster (kz-tpg1, kz-tco, ...)\n\nWrites (deposit/withdraw/non-GET API) are off unless you enable them below.",
+  "description": "Staging backoffice API (+ read-only staging Postgres for devs) and PGW UAT verification for KZ.",
+  "long_description": "One MCP server for KZ payment-gateway work on staging.\n\n- Role, asked once: **project** (backoffice login only, no DB) or **dev** (backoffice + read-only DB).\n- `kz_*`: quick guide, set role.\n- `bo_*`: login (TOTP), list funding methods, list a provider's orders, find test members, create deposit/withdraw, raw GET.\n- `pg_*` (dev only): read-only SQL.\n- Skills: kz-guide, kz-create-orders, kz-pgw-uat (UAT verdict per SOP OS-52).\n\nWrites (deposit/withdraw) are off unless you enable them below.",
   "author": {
     "name": "S5 Tech",
     "email": "quang.tr@s5tech.co"
@@ -30,6 +30,7 @@
         "${__dirname}/dist/cli.js"
       ],
       "env": {
+        "KZ_ROLE": "${user_config.role}",
         "KZ_USERNAME": "${user_config.kz_username}",
         "KZ_PASSWORD": "${user_config.kz_password}",
         "KZ_STAGING_DOMAIN": "${user_config.kz_staging_domain}",
@@ -51,6 +52,14 @@
   },
   "tools": [
     {
+      "name": "kz_guide",
+      "description": "Show the quick guide"
+    },
+    {
+      "name": "kz_set_role",
+      "description": "Save role: project or dev (one-time)"
+    },
+    {
       "name": "bo_login",
       "description": "Login to a staging group backoffice (step 1)"
     },
@@ -64,7 +73,7 @@
     },
     {
       "name": "bo_check_access",
-      "description": "Can this staff login create deposits / withdraws on the group? (DB read)"
+      "description": "Can this staff login create deposits / withdraws? (DB read, dev role)"
     },
     {
       "name": "bo_logout",
@@ -72,7 +81,15 @@
     },
     {
       "name": "bo_find_member",
-      "description": "Find test members by wallet balance (DB read)"
+      "description": "Find test members by wallet balance (DB for dev, backoffice API for project)"
+    },
+    {
+      "name": "bo_list_methods",
+      "description": "List funding methods, resolve provider name → key"
+    },
+    {
+      "name": "bo_list_orders",
+      "description": "List a provider's deposit/withdraw orders in a time window"
     },
     {
       "name": "bo_create_deposit",
@@ -88,22 +105,29 @@
     },
     {
       "name": "pg_query",
-      "description": "Run one read-only SQL statement"
+      "description": "Run one read-only SQL statement (dev role)"
     },
     {
       "name": "pg_list_databases",
-      "description": "List databases on the staging cluster"
+      "description": "List databases on the staging cluster (dev role)"
     },
     {
       "name": "pg_list_tables",
-      "description": "List tables in a schema"
+      "description": "List tables in a schema (dev role)"
     },
     {
       "name": "pg_describe_table",
-      "description": "Columns, indexes, FKs of a table"
+      "description": "Columns, indexes, FKs of a table (dev role)"
     }
   ],
   "user_config": {
+    "role": {
+      "type": "string",
+      "title": "Role: project or dev",
+      "description": "project = PA / QA / PM, backoffice only (leave all DB / SSH fields empty). dev = backoffice + staging DB. Empty = asked in Claude on first use.",
+      "default": "",
+      "required": false
+    },
     "kz_username": {
       "type": "string",
       "title": "Backoffice username",
@@ -134,8 +158,8 @@
     "pg_host": {
       "type": "string",
       "title": "Postgres host",
-      "description": "pgAdmin → kz-api-global → Properties → Connection → Host",
-      "required": true
+      "description": "pgAdmin → kz-api-global → Properties → Connection → Host. Dev role only.",
+      "required": false
     },
     "pg_port": {
       "type": "number",
@@ -156,15 +180,15 @@
     "pg_user": {
       "type": "string",
       "title": "Postgres user",
-      "required": true,
-      "description": "Postgres username (pgAdmin → Connection → Username)."
+      "required": false,
+      "description": "Postgres username (pgAdmin → Connection → Username). Dev role only."
     },
     "pg_password": {
       "type": "string",
       "title": "Postgres password",
       "sensitive": true,
-      "required": true,
-      "description": "Postgres password."
+      "required": false,
+      "description": "Postgres password. Dev role only."
     },
     "pg_sslmode": {
       "type": "string",
@@ -211,7 +235,7 @@
     "skills_dir": {
       "type": "string",
       "title": "Claude skills folder",
-      "description": "Where bundled skills (kz-bo-pgw, kz-sql, kz-pgw-issue) are copied. Leave empty for ~/.claude/skills. Type off to skip.",
+      "description": "Where bundled skills (kz-guide, kz-create-orders, kz-pgw-uat) are copied. Leave empty for ~/.claude/skills. Type off to skip.",
       "default": "",
       "required": false
     }

@@ -8,13 +8,14 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { dirname } from "node:path";
 
 import { CLI, PKG, TOOLS } from "../core/constants.js";
+import { CONFIG_HEADER } from "../core/store.js";
 import { ENV, ENV_KEYS, defaultOf, parseEnvFile, renderEnvFile, totpKey, type EnvKey } from "../core/env.js";
 import { CONFIG_FILE, DEFAULT_SKILLS_DIR } from "../core/paths.js";
 import { close, confirm, input, password, select } from "./prompt.js";
 
 type Vars = Record<string, string>;
 
-const HEADER = `${PKG} — written by \`kz-pgw-mcp init\`. Re-run to change.`;
+const HEADER = CONFIG_HEADER;
 const SSH_KEYS = ENV_KEYS.filter((k) => ENV[k].section === "ssh");
 
 function existing(): Vars {
@@ -40,7 +41,18 @@ export async function init(args: string[]): Promise<void> {
   if (Object.keys(v).length) console.log("Existing config found. Enter keeps the current value.\n");
 
   try {
-    console.log("── Backoffice (staging) ──");
+    console.log("── Role ──");
+    v.KZ_ROLE = await select(
+      "Who are you?",
+      [
+        { value: "project", name: "project — PA / QA / PM. Backoffice login only, no DB setup" },
+        { value: "dev", name: "dev — backoffice + staging DB" },
+      ],
+      (v.KZ_ROLE as "project" | "dev") || "project",
+    );
+    const project = v.KZ_ROLE === "project";
+
+    console.log("\n── Backoffice (staging) ──");
     await text(v, "KZ_USERNAME", "BO staff username", { required: true });
     await secret(v, "KZ_PASSWORD", "BO password");
     await text(v, "KZ_STAGING_DOMAIN", "Staging domain");
@@ -56,44 +68,46 @@ export async function init(args: string[]): Promise<void> {
       }
     }
 
-    console.log("\n── Staging Postgres ──");
-    await text(v, "PGHOST", undefined, { required: true });
-    await text(v, "PGPORT");
-    await text(v, "PGDATABASE", "Default database", { def: "kz-tpg1" });
-    await text(v, "PGUSER", undefined, { required: true });
-    await secret(v, "PGPASSWORD");
-    v.PGSSLMODE = await select(
-      "PGSSLMODE",
-      [
-        { value: "require", name: "require (RDS / Cloud SQL)" },
-        { value: "prefer", name: "prefer" },
-        { value: "disable", name: "disable" },
-        { value: "verify-full", name: "verify-full" },
-      ],
-      (v.PGSSLMODE as "require" | "prefer" | "disable" | "verify-full") || "require",
-    );
-    await text(v, "PG_MCP_LABEL", "Label shown in tool descriptions", { def: "kz-api-global (staging)" });
-
-    console.log("\n── SSH tunnel ──");
-    if (await confirm("Connect through an SSH jump host (like pgAdmin SSH Tunnel)?", !!v.SSH_HOST)) {
-      await text(v, "SSH_HOST", undefined, { required: true });
-      await text(v, "SSH_PORT");
-      await text(v, "SSH_USER");
-      const auth = await select(
-        "SSH auth",
+    if (!project) {
+      console.log("\n── Staging Postgres ──");
+      await text(v, "PGHOST", undefined, { required: true });
+      await text(v, "PGPORT");
+      await text(v, "PGDATABASE", "Default database", { def: "kz-tpg1" });
+      await text(v, "PGUSER", undefined, { required: true });
+      await secret(v, "PGPASSWORD");
+      v.PGSSLMODE = await select(
+        "PGSSLMODE",
         [
-          { value: "password", name: "password" },
-          { value: "key", name: "private key file" },
-          { value: "agent", name: "ssh-agent / default ~/.ssh key" },
+          { value: "require", name: "require (RDS / Cloud SQL)" },
+          { value: "prefer", name: "prefer" },
+          { value: "disable", name: "disable" },
+          { value: "verify-full", name: "verify-full" },
         ],
-        v.SSH_KEY_PATH ? "key" : "password",
+        (v.PGSSLMODE as "require" | "prefer" | "disable" | "verify-full") || "require",
       );
-      if (auth !== "password") delete v.SSH_PASSWORD;
-      if (auth !== "key") delete v.SSH_KEY_PATH;
-      if (auth === "password") await secret(v, "SSH_PASSWORD");
-      if (auth === "key") await text(v, "SSH_KEY_PATH", undefined, { def: "~/.ssh/id_ed25519" });
-    } else {
-      for (const k of SSH_KEYS) delete v[k];
+      await text(v, "PG_MCP_LABEL", "Label shown in tool descriptions", { def: "kz-api-global (staging)" });
+
+      console.log("\n── SSH tunnel ──");
+      if (await confirm("Connect through an SSH jump host (like pgAdmin SSH Tunnel)?", !!v.SSH_HOST)) {
+        await text(v, "SSH_HOST", undefined, { required: true });
+        await text(v, "SSH_PORT");
+        await text(v, "SSH_USER");
+        const auth = await select(
+          "SSH auth",
+          [
+            { value: "password", name: "password" },
+            { value: "key", name: "private key file" },
+            { value: "agent", name: "ssh-agent / default ~/.ssh key" },
+          ],
+          v.SSH_KEY_PATH ? "key" : "password",
+        );
+        if (auth !== "password") delete v.SSH_PASSWORD;
+        if (auth !== "key") delete v.SSH_KEY_PATH;
+        if (auth === "password") await secret(v, "SSH_PASSWORD");
+        if (auth === "key") await text(v, "SSH_KEY_PATH", undefined, { def: "~/.ssh/id_ed25519" });
+      } else {
+        for (const k of SSH_KEYS) delete v[k];
+      }
     }
 
     console.log("\n── VPN ──");
@@ -115,7 +129,7 @@ export async function init(args: string[]): Promise<void> {
     writeFileSync(CONFIG_FILE, out, { mode: 0o600 });
     chmodSync(CONFIG_FILE, 0o600);
     console.log(`\nWrote ${CONFIG_FILE} (600).`);
-    console.log(`Next:  ${CLI.doctor}     # test DB connection`);
+    console.log(`Next:  ${CLI.doctor}     # check config${project ? "" : " + DB connection"}`);
     console.log(`       ${CLI.install}    # add to Claude Desktop / Claude Code\n`);
   } finally {
     close();

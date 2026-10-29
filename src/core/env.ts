@@ -8,15 +8,16 @@
 
 import { TOTP_SECRET_PREFIX } from "./constants.js";
 
-export type Section = "bo" | "pg" | "ssh" | "vpn" | "skills";
+export type Section = "role" | "bo" | "pg" | "ssh" | "vpn" | "skills";
 
 /** Section order and headings in the written .env. */
 export const SECTIONS: Record<Section, string> = {
+  role: "Role: project (backoffice only) or dev (backoffice + staging DB)",
   bo: "Backoffice (staging)",
   pg: "Staging Postgres (pgAdmin → kz-api-global → Properties → Connection)",
   ssh: "SSH tunnel (pgAdmin → SSH Tunnel tab). Empty SSH_HOST = direct connect",
   vpn: "VPN nudge (macOS)",
-  skills: "Claude skills (kz-bo-pgw, kz-sql, kz-pgw-issue)",
+  skills: "Claude skills (kz-guide, kz-create-orders, kz-pgw-uat)",
 };
 
 interface Spec {
@@ -32,6 +33,7 @@ interface Spec {
 }
 
 export const ENV = {
+  KZ_ROLE: { section: "role", note: "project | dev. Blank = asked on first use" },
   KZ_USERNAME: { section: "bo", note: "Staff login, same for all groups" },
   KZ_PASSWORD: { section: "bo", secret: true },
   KZ_STAGING_DOMAIN: { section: "bo", def: "trykz.dev", note: "Group API = https://api.<group>.<domain>" },
@@ -49,7 +51,7 @@ export const ENV = {
   PGSSLMODE: { section: "pg", note: "require for RDS. disable/prefer → plain" },
   PG_MCP_LABEL: { section: "pg", note: "Shown in tool descriptions" },
   PG_MCP_TIMEOUT_MS: { section: "pg", def: "30000", note: "Statement timeout" },
-  KZ_PG_DB_TEMPLATE: { section: "pg", def: "kz-{group}", note: "Database used by bo_find_member" },
+  KZ_PG_DB_TEMPLATE: { section: "pg", def: "kz-{group}", note: "Database used by bo_find_member / bo_check_access (dev role)" },
 
   SSH_HOST: { section: "ssh" },
   SSH_PORT: { section: "ssh", def: "22" },

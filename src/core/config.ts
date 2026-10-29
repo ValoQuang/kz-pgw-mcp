@@ -45,6 +45,19 @@ function needs(keys: readonly EnvKey[], what: string): void {
 
 const isTrue = (v: string | undefined): boolean => /^(1|true|yes)$/i.test(v ?? "");
 
+/** Who uses the server. project = backoffice API only. dev = backoffice + staging DB. */
+export const ROLES = ["project", "dev"] as const;
+export type Role = (typeof ROLES)[number];
+
+export const role = {
+  /** Undefined until the user picks one (init, .mcpb form, or kz_set_role). */
+  get: (): Role | undefined => {
+    const v = raw("KZ_ROLE")?.toLowerCase();
+    return (ROLES as readonly string[]).includes(v ?? "") ? (v as Role) : undefined;
+  },
+  isProject: (): boolean => role.get() === "project",
+};
+
 /** Backoffice API */
 export const bo = {
   stagingDomain: (): string => get("KZ_STAGING_DOMAIN")!,

@@ -12,12 +12,16 @@ export const CLI = {
 } as const;
 
 export const TOOLS = {
+  kzGuide: "kz_guide",
+  kzSetRole: "kz_set_role",
   boLogin: "bo_login",
   boSubmitTotp: "bo_submit_totp",
   boWhoami: "bo_whoami",
   boCheckAccess: "bo_check_access",
   boLogout: "bo_logout",
   boFindMember: "bo_find_member",
+  boListMethods: "bo_list_methods",
+  boListOrders: "bo_list_orders",
   boCreateDeposit: "bo_create_deposit",
   boCreateWithdraw: "bo_create_withdraw",
   boApi: "bo_api",
@@ -26,6 +30,20 @@ export const TOOLS = {
   pgDescribeTable: "pg_describe_table",
   pgListDatabases: "pg_list_databases",
 } as const;
+
+/** Tools only the dev role gets. Hidden for project. */
+export const DEV_ONLY_TOOLS: readonly string[] = [
+  TOOLS.pgQuery,
+  TOOLS.pgListTables,
+  TOOLS.pgDescribeTable,
+  TOOLS.pgListDatabases,
+];
+
+/** Tools that work before a role is picked. */
+export const NO_ROLE_TOOLS: readonly string[] = [TOOLS.kzGuide, TOOLS.kzSetRole];
+
+/** bo_list_orders / bo_find_member caps. */
+export const ORDER_LIMITS = { default: 100, max: 500, memberScan: 40 } as const;
 
 /** Env var prefix for per-group TOTP secrets: KZ_TOTP_SECRET_TPG1. */
 export const TOTP_SECRET_PREFIX = "KZ_TOTP_SECRET_";
