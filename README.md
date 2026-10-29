@@ -209,11 +209,11 @@ UAT passes only when the client ran every case in the Member Portal. Staff-made 
 | # | Case | Pass when |
 |---|---|---|
 | C1 | Deposit success | `completed` after callback |
-| C2 | Deposit rejected | `error` after callback |
+| C2 | Deposit rejected | `error` after callback. No order → pending, check provider supports it |
 | C3 | Withdraw success | `completed` after callback |
 | C4 | Withdraw rejected | `pending-audit` after callback |
-| C5 | Paid ≠ entered amount | credited = paid amount (`netAmount`) |
-| C6 | 3rd balance | BO balance = provider BO balance |
+| C5 | Paid ≠ entered amount | credited = paid amount (`netAmount`). No order → pending, check provider supports it |
+| C6 | 3rd balance | balance sync works (read from `fundingProvider`) and a person confirms BO balance = provider BO balance |
 
 Full SOP (how to run each case, region extras, before / after UAT): [`skills/kz-pgw-uat/references/uat-sop.md`](skills/kz-pgw-uat/references/uat-sop.md).
 
