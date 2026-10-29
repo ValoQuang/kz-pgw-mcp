@@ -32,7 +32,7 @@ If the tools are deferred, load them with ToolSearch (`select:mcp__kz-pgw__bo_lo
 - "can I deposit / withdraw on X" → `bo_check_access(group)`. Project role returns nulls + a note: say "Not pre-checked for project role; the API refuses if you lack it."
 - "find a test member" → `bo_find_member(group, profileType: "bank", limit: 5)`. Show memberId, balance, fundingProfileId.
 - "which methods does <provider> have" → `bo_list_methods(group, provider)`.
-- "show orders for <provider>" → `bo_list_orders(group, provider, since)`. For a UAT verdict use the `kz-pgw-uat` skill.
+- "show orders for <provider>" → `bo_list_orders(group, provider, since)`. For a UAT verdict use the `kz-verify-orders` skill.
 - "check order TPG1XFW…" → `bo_list_orders(group, orderRef)`. "orders of member X" → `bo_list_orders(group, memberId)`.
 - By provider's own tx id (providerRef): no API filter. Run `bo_list_orders(group, provider, since)` and match `providerRef` in the rows.
 - Other GET → `bo_api(group, path)`.

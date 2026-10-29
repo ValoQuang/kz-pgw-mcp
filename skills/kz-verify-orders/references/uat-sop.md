@@ -41,7 +41,7 @@ Also for every case:
 | Provider sends Expired | Maps to `timeout` |
 
 ## How to verify
-- Whole UAT: "verify UAT for `<provider>` on `<group>` since `<date>`" → PASS / PENDING / FAIL per case (`kz-pgw-uat` skill).
+- Whole UAT: "verify UAT for `<provider>` on `<group>` since `<date>`" → PASS / PENDING / FAIL per case (`kz-verify-orders` skill).
 - One order: ask "check tx `<orderRef>` on `<group>`" (status, callback, wallet credit).
 - Stuck or wrong order: ask "analyze `<orderRef>` on `<group>`".
 

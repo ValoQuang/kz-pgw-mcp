@@ -4,7 +4,7 @@ One MCP server for KZ payment-gateway work on **staging** (`*.trykz.dev`). Backo
 
 - **Role, asked once:** `project` (PA / QA / PM: backoffice login only, no DB setup) or `dev` (backoffice + read-only DB).
 - 17 tools: `kz_*` (guide, role), `bo_*` (backoffice) and `pg_*` (Postgres, dev).
-- 3 skills: `kz-guide`, `kz-create-orders`, `kz-pgw-uat`. Auto-copied to `~/.claude/skills/`.
+- 3 skills: `kz-guide`, `kz-create-orders`, `kz-verify-orders`. Auto-copied to `~/.claude/skills/`.
 - First use shows a short guide.
 - Writes (deposit, withdraw, non-GET API) are **off by default**.
 - Staging only. Needs NordLayer VPN.
@@ -179,9 +179,9 @@ Login flow: `bo_login` → if `totpRequired` and not `autoTotp`, get the code �
 |---|---|---|
 | `kz-guide` | "how do I use kz-pgw?" / "kz guide" / "set my kz role to dev" | Shows the quick guide. Asks / changes the role |
 | `kz-create-orders` | "login tpg1" / "make a 300 deposit on tpg1 via cpay-2" / "find a test member" | Login + TOTP, find a member, create deposit / withdraw. Confirms every write in one line first. Renamed from `kz-bo-pgw` |
-| `kz-pgw-uat` | "what are the UAT cases?" / "verify UAT for cpay-2 on tpg1 since 2026-10-20" | Shows the 6-case UAT SOP (OS-52). Maps the client's orders to the cases, checks the 3rd balance, gives PASS / PENDING / FAIL. dev reads the DB, project the BO API |
+| `kz-verify-orders` | "what are the UAT cases?" / "verify UAT for cpay-2 on tpg1 since 2026-10-20" | Shows the 6-case UAT SOP (OS-52). Maps the client's orders to the cases, checks the 3rd balance, gives PASS / PENDING / FAIL. dev reads the DB, project the BO API |
 
-### `kz-pgw-uat`
+### `kz-verify-orders`
 
 UAT passes only when the client ran every case in the Member Portal (`creatorId` null). Staff-made orders are listed but never count.
 
@@ -200,7 +200,7 @@ Flags that fail UAT: callback → done > 120 s, `netAmount` > `reqAmount`, amoun
 - **PENDING:** C1, C3, C4 met, no flags, C2 / C5 / C6 still ⏳.
 - **FAIL:** C1, C3 or C4 missing, C6 ❌, or any flag.
 
-Full SOP (how to run each case, region extras, before / after UAT): [`skills/kz-pgw-uat/references/uat-sop.md`](skills/kz-pgw-uat/references/uat-sop.md).
+Full SOP (how to run each case, region extras, before / after UAT): [`skills/kz-verify-orders/references/uat-sop.md`](skills/kz-verify-orders/references/uat-sop.md).
 
 ### Where skills go
 
@@ -293,7 +293,7 @@ src/
     errors.ts         error → one actionable line, VPN nudge
     tools.ts          pg_* tools
   skills/sync.ts      copies skills/ → KZ_SKILLS_DIR
-skills/               bundled Claude skills (kz-guide, kz-create-orders, kz-pgw-uat)
+skills/               bundled Claude skills (kz-guide, kz-create-orders, kz-verify-orders)
 manifest.json         .mcpb user_config form for Claude Desktop
 ```
 
