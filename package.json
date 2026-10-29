@@ -1,6 +1,6 @@
 {
   "name": "@valoquang/kz-pgw-mcp",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "KZ Payment Gateway MCP: staging backoffice API, PGW UAT verification, read-only staging Postgres for devs",
   "license": "UNLICENSED",
   "type": "module",
