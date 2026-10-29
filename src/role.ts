@@ -20,7 +20,7 @@ const SKILLS = [
   { name: "kz-guide", say: "how do I use kz-pgw?", does: "This guide" },
   { name: "kz-create-orders", say: "make a 300 deposit on tpg1 via cpay-2", does: "Create test deposit / withdraw orders (asks ok? first)" },
   {
-    name: "kz-pgw-uat",
+    name: "kz-verify-orders",
     say: "verify UAT for cpay-2 on tpg1 since 2026-10-20",
     does: "Show the 6 UAT cases (SOP OS-52). Map the client's orders to them, check the 3rd balance, give PASS / PENDING / FAIL",
   },

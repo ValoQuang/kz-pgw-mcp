@@ -4,7 +4,7 @@
   "display_name": "KZ Payment Gateway (staging)",
   "version": "0.2.0",
   "description": "Staging backoffice API (+ read-only staging Postgres for devs) and PGW UAT verification for KZ.",
-  "long_description": "One MCP server for KZ payment-gateway work on staging.\n\n- Role, asked once: **project** (backoffice login only, no DB) or **dev** (backoffice + read-only DB).\n- `kz_*`: quick guide, set role.\n- `bo_*`: login (TOTP), list funding methods, list a provider's orders, find test members, create deposit/withdraw, raw GET.\n- `pg_*` (dev only): read-only SQL.\n- Skills: kz-guide, kz-create-orders, kz-pgw-uat (UAT verdict per SOP OS-52).\n\nWrites (deposit/withdraw) are off unless you enable them below.",
+  "long_description": "One MCP server for KZ payment-gateway work on staging.\n\n- Role, asked once: **project** (backoffice login only, no DB) or **dev** (backoffice + read-only DB).\n- `kz_*`: quick guide, set role.\n- `bo_*`: login (TOTP), list funding methods, list a provider's orders, find test members, create deposit/withdraw, raw GET.\n- `pg_*` (dev only): read-only SQL.\n- Skills: kz-guide, kz-create-orders, kz-verify-orders (UAT verdict per SOP OS-52).\n\nWrites (deposit/withdraw) are off unless you enable them below.",
   "author": {
     "name": "S5 Tech",
     "email": "quang.tr@s5tech.co"
@@ -235,7 +235,7 @@
     "skills_dir": {
       "type": "string",
       "title": "Claude skills folder",
-      "description": "Where bundled skills (kz-guide, kz-create-orders, kz-pgw-uat) are copied. Leave empty for ~/.claude/skills. Type off to skip.",
+      "description": "Where bundled skills (kz-guide, kz-create-orders, kz-verify-orders) are copied. Leave empty for ~/.claude/skills. Type off to skip.",
       "default": "",
       "required": false
     }

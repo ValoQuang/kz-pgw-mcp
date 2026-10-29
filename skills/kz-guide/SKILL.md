@@ -18,6 +18,6 @@ description: "Quick guide for the kz-pgw plugin (KZ staging backoffice + PGW UAT
 |---|---|
 | `kz-guide` | This guide, role choice |
 | `kz-create-orders` | Login, find test member, create deposit / withdraw |
-| `kz-pgw-uat` | UAT SOP (6 cases) and verdict: map a provider's orders to the cases, PASS / PENDING / FAIL |
+| `kz-verify-orders` | UAT SOP (6 cases) and verdict: map a provider's orders to the cases, PASS / PENDING / FAIL |
 
 MCP missing entirely → "kz-pgw MCP is not installed. Install the `.mcpb` (Claude Desktop) or run `claude mcp add kz-pgw -- npx -y @valoquang/kz-pgw-mcp` (Claude Code)."

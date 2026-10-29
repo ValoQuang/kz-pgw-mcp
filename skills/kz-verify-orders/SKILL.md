@@ -1,5 +1,5 @@
 ---
-name: "kz-pgw-uat"
+name: "kz-verify-orders"
 description: "PGW UAT SOP and verifier for KZ staging. Use when the user asks for the UAT cases, the UAT SOP, how to run a UAT case, or wants to verify a provider's UAT orders (e.g. \"what are the 6 UAT cases\", \"verify UAT for cpay-2 on tpg1 since 2026-10-20\", \"did the client finish UAT for toppay\"). Maps the client's orders to the 6 cases of SOP OS-52, checks the 3rd balance, and gives PASS / PENDING / FAIL. Works for both roles (project and dev). Read-only."
 ---
 
