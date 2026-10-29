@@ -1,6 +1,6 @@
 /** `kz-pgw-mcp doctor`: print resolved config (secrets masked) and test the DB connection. Exit 1 on any problem. */
 
-import { BO_KEYS, PG_KEYS, loadedFrom, summary } from "../core/config.js";
+import { BO_KEYS, PG_KEYS, loadedFrom, role, summary } from "../core/config.js";
 import { CLI, SERVER_NAME } from "../core/constants.js";
 import { missing } from "../core/env.js";
 import { CONFIG_FILE } from "../core/paths.js";
@@ -19,8 +19,6 @@ async function checkDb(): Promise<boolean> {
   } catch (e) {
     console.log(formatPgError(e));
     return false;
-  } finally {
-    await closePools();
   }
 }
 
@@ -29,14 +27,22 @@ export async function doctor(): Promise<void> {
   console.log(`config file: ${CONFIG_FILE} ${loadedFrom.includes(CONFIG_FILE) ? "(loaded)" : "(not found)"}`);
   if (loadedFrom.length) console.log(`loaded from: ${loadedFrom.join(", ")}`);
   console.log("");
-  for (const [k, v] of Object.entries(summary())) console.log(`  ${k.padEnd(22)} ${v}`);
+  for (const [k, v] of Object.entries(summary())) console.log(`  ${k.padEnd(26)} ${v}`);
   console.log("");
 
   const boMissing = missing(BO_KEYS);
-  const pgMissing = missing(PG_KEYS);
+  const r = role.get();
+  console.log(`role: ${r ?? "not set (run init, or pick it in Claude on first use)"}`);
   console.log(`backoffice: ${boMissing.length ? `MISSING ${boMissing.join(", ")}` : "ok"}`);
+  if (r === "project") {
+    console.log("staging db: not used (project role)");
+    if (boMissing.length) console.log(`\nfix: ${CLI.init}`);
+    process.exit(boMissing.length ? 1 : 0);
+  }
+  const pgMissing = missing(PG_KEYS);
   if (pgMissing.length) console.log(`staging db: MISSING ${pgMissing.join(", ")}`);
   const dbOk = !pgMissing.length && (await checkDb());
+  await closePools();
 
   const healthy = !boMissing.length && dbOk;
   if (!healthy) console.log(`\nfix: ${CLI.init}`);

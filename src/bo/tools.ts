@@ -1,10 +1,10 @@
-/** Backoffice MCP tools: login/session, member lookup, deposit/withdraw, raw API. */
+/** Backoffice MCP tools: login/session, member lookup, methods/orders lists, deposit/withdraw, raw API. */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { bo as cfg, pg as pgCfg } from "../core/config.js";
-import { CLI, GROUP_HINT, GROUP_RE, HINTS, TOOLS } from "../core/constants.js";
+import { bo as cfg, pg as pgCfg, role } from "../core/config.js";
+import { CLI, GROUP_HINT, GROUP_RE, HINTS, ORDER_LIMITS, TOOLS } from "../core/constants.js";
 import type { EnvKey } from "../core/env.js";
 import { CONFIG_FILE } from "../core/paths.js";
 import { fail, ok, safely, type ToolResult } from "../core/result.js";
@@ -13,6 +13,7 @@ import { formatPgError } from "../pg/errors.js";
 import { apiCall } from "./api.js";
 import { login, logout, status, submitTotp } from "./auth.js";
 import { BO_PATH, normalizePath, WRITE_PATHS, writeTarget, type WriteKind } from "./paths.js";
+import { findMembersViaApi, listMethods, listOrders, matchProviders, summarize } from "./reads.js";
 
 const WRITE_KEY: EnvKey = "KZ_PGW_ALLOW_WRITES";
 
@@ -60,14 +61,21 @@ WHERE c."accessKey" = $1
 interface Access {
   group: string;
   username: string;
-  database: string;
-  deposit: boolean;
-  withdraw: boolean;
+  database: string | null;
+  deposit: boolean | null;
+  withdraw: boolean | null;
   privileges: string[];
+  note?: string;
 }
 
 async function checkAccess(group: string): Promise<Access> {
   const { username } = cfg.credentials();
+  if (role.isProject()) {
+    return {
+      group, username, database: null, deposit: null, withdraw: null, privileges: [],
+      note: `Project role: no DB, so privileges are not pre-checked. kz-api answers 403 if ${username} lacks account:${PRIV.deposit} / account:${PRIV.withdraw}.`,
+    };
+  }
   const database = pgCfg.databaseForGroup(group);
   const rows = await queryRows<{ privilege: string }>(ACCESS_SQL, [username, Object.values(PRIV), SUPER_ADMIN], database);
   const privileges = rows.map((r) => r.privilege);
@@ -77,6 +85,8 @@ async function checkAccess(group: string): Promise<Access> {
 
 /** Write tools stop here unless the staff login holds the privilege on this group. Nothing is sent to the API. */
 async function privilegeGate(group: string, kind: WriteKind): Promise<ToolResult | null> {
+  // Project role has no DB: kz-api's own privilege check (403) is the gate.
+  if (role.isProject()) return null;
   const a = await checkAccess(group);
   return a[kind]
     ? null
@@ -168,7 +178,7 @@ Returns: { group, loggedIn, expiresAt }`,
     TOOLS.boCheckAccess,
     {
       title: "Check write privileges",
-      description: `Reads the group DB (kz-{group}) and reports whether the configured staff login (KZ_USERNAME) may create deposits / withdraws there.
+      description: `dev role: reads the group DB (kz-{group}). project role: no DB, returns nulls + a note (kz-api enforces with 403). Reports whether the configured staff login (KZ_USERNAME) may create deposits / withdraws there.
 Needs account:${PRIV.deposit} / account:${PRIV.withdraw}, or ${SUPER_ADMIN}. No login needed.
 Call before offering a write. ${TOOLS.boCreateDeposit} / ${TOOLS.boCreateWithdraw} run the same check and stop if it fails.
 Returns: { group, username, database, deposit, withdraw, privileges }`,
@@ -195,8 +205,8 @@ Returns: { group, username, database, deposit, withdraw, privileges }`,
     TOOLS.boFindMember,
     {
       title: "Find test members by balance",
-      description: `Reads the group DB (database = kz-{group} on the staging cluster) and returns members with wallet.balance > minBalance
-and at least one non-deleted fundingProfile. One row per (member, profile).
+      description: `Returns members with wallet.balance > minBalance and at least one non-deleted fundingProfile. One row per (member, profile).
+dev role: reads the group DB (kz-{group}). project role: backoffice API (needs bo_login; scans up to ${ORDER_LIMITS.memberScan} members).
 Use this to pick a memberId + fundingProfileId for ${TOOLS.boCreateDeposit}.
 Returns: { count, members: [{ memberId, apiIdentifier, balance, fundingProfileId, profileType, bankKey, accNo, isPrimary }] }`,
       inputSchema: {
@@ -208,10 +218,102 @@ Returns: { count, members: [{ memberId, apiIdentifier, balance, fundingProfileId
       annotations: HINTS.readRemote,
     },
     safely(async ({ group: g, minBalance, profileType, limit }) => {
+      if (role.isProject()) {
+        const r = await findMembersViaApi(g, { minBalance, profileType, limit });
+        return ok({ source: "backoffice api", count: r.members.length, scannedMembers: r.scanned, members: r.members });
+      }
       const db = pgCfg.databaseForGroup(g);
       const rows = await queryRows<MemberRow>(FIND_MEMBER_SQL, [minBalance, profileType ?? null, limit], db);
       return ok({ database: db, count: rows.length, members: rows });
     }, formatPgError),
+  );
+
+  server.registerTool(
+    TOOLS.boListMethods,
+    {
+      title: "List funding methods / providers",
+      description: `GET /account/funding/method/list on the group. Backoffice API, both roles. Needs ${TOOLS.boLogin}.
+Use to resolve a provider name to its providerKey and to pick a method key ("<providerKey>/<channel>") for ${TOOLS.boCreateDeposit}.
+Args:
+  - provider: optional key or name, e.g. "cpay-2", "Cpay", "toppay". Omit for all.
+  - type: optional "deposit" | "withdraw".
+Returns: { providers: [providerKey], count, methods: [{ key, providerKey, type, name, internalName, status, returnType, min, max, currency }] }`,
+      inputSchema: {
+        group,
+        provider: z.string().min(2).optional(),
+        type: z.enum(["deposit", "withdraw"]).optional(),
+      },
+      annotations: HINTS.readRemote,
+    },
+    safely(async ({ group: g, provider, type }) => {
+      const all = await listMethods(g);
+      const scoped = provider ? matchProviders(all, provider).methods : all;
+      const methods = type ? scoped.filter((m) => m.type === type) : scoped;
+      return ok({ group: g, providers: [...new Set(methods.map((m) => m.providerKey))].sort(), count: methods.length, methods });
+    }),
+  );
+
+  server.registerTool(
+    TOOLS.boListOrders,
+    {
+      title: "List deposit / withdraw orders",
+      description: `GET /account/funding/tx/list on the group. Backoffice API, both roles. Needs ${TOOLS.boLogin}.
+Give at least one of provider, orderRef, memberId.
+  - By provider: provider + since required. provider can be a providerKey ("cpay-2") or a name ("Cpay"); it is resolved through the funding method list. Ambiguous names return every match.
+  - By orderRef: exact order ref, e.g. "TPG1XFW123"; comma list for several. since optional.
+  - By memberId: that member's orders, newest first when since is omitted.
+Args:
+  - since: ISO date/time (UTC), e.g. "2026-10-20" or "2026-10-20T07:00:00Z". until defaults to now. Omitted → no time filter.
+  - type: "deposit" | "withdraw" | "all" (default all).
+  - status: optional filter, comma list, e.g. "completed,error".
+Cannot search by providerRef (the provider's own tx id): the API has no filter for it. Use provider + window and read providerRef in the rows.
+Each order: creatorId null = created by the player in MP; set = created by staff in BO. callbackToDoneSec = seconds from provider callback to completed/cancelled.
+Returns: { providers, window, total, returned, summary: { type: { status: count } }, orders: [...] }`,
+      inputSchema: {
+        group,
+        provider: z.string().min(2).optional().describe('providerKey or name, e.g. "cpay-2" or "Cpay"'),
+        orderRef: z.string().trim().min(3).optional().describe('fundingTx.orderRef, e.g. "TPG1XFW123". Comma list allowed'),
+        memberId: memberId.optional(),
+        since: z.string().min(8).optional().describe("ISO date/time, UTC. Required with provider"),
+        until: z.string().min(8).optional(),
+        type: z.enum(["deposit", "withdraw", "all"]).default("all"),
+        status: z.string().optional(),
+        limit: z.number().int().min(1).max(ORDER_LIMITS.max).default(ORDER_LIMITS.default),
+      },
+      annotations: HINTS.readRemote,
+    },
+    safely(async ({ group: g, provider, orderRef, memberId: member, since, until, type, status, limit }) => {
+      if (!provider && !orderRef && !member) return fail("Give at least one of provider, orderRef, memberId.");
+      if (provider && !since) return fail("since is required with provider, e.g. since: \"2026-10-20\".");
+      if (until && !since) return fail("until needs since.");
+      for (const d of [since, until]) if (d && Number.isNaN(Date.parse(d))) return fail(`Not a date: "${d}". Use ISO, e.g. 2026-10-20 or 2026-10-20T07:00:00Z.`);
+      let keys: string[] | undefined;
+      let methods: Awaited<ReturnType<typeof listMethods>> = [];
+      if (provider) {
+        ({ keys, methods } = matchProviders(await listMethods(g), provider));
+        if (!keys.length) {
+          const known = [...new Set((await listMethods(g)).map((m) => m.providerKey))].sort();
+          return fail(`No provider matches "${provider}" on ${g}. Known providerKeys: ${known.join(", ") || "(none)"}`);
+        }
+      }
+      const types = type === "all" ? ["deposit", "withdraw"] : [type];
+      const sinceIso = since ? new Date(since).toISOString() : undefined;
+      const untilIso = since ? (until ? new Date(until).toISOString() : new Date().toISOString()) : undefined;
+      const { orders, total } = await listOrders(g, {
+        providerKeys: keys, types, since: sinceIso, until: untilIso, status, orderRef, memberId: member, limit,
+      });
+      return ok({
+        group: g,
+        providers: keys ?? null,
+        methods: methods.map((m) => `${m.key} (${m.type}, ${m.status})`),
+        window: sinceIso ? { since: sinceIso, until: untilIso } : null,
+        total,
+        returned: orders.length,
+        truncated: total !== null && total > orders.length,
+        summary: summarize(orders),
+        orders,
+      });
+    }),
   );
 
   server.registerTool(
