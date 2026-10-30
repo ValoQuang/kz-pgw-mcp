@@ -2,8 +2,17 @@
 
 export const PKG = "@valoquang/kz-pgw-mcp";
 export const SERVER_NAME = "kz-pgw-mcp";
-/** Default MCP server name in Claude config → tools appear as mcp__kz-pgw__*. */
+/**
+ * Default MCP server name in Claude config. Tool IDs depend on how it was added:
+ * mcp__kz-pgw__* (claude mcp add / Desktop config), mcp__plugin_kz-pgw_kz-pgw__* (plugin).
+ * Skills refer to tools by bare name (bo_login), never by full ID.
+ */
 export const DEFAULT_MCP_NAME = "kz-pgw";
+
+/** GitHub repo = Claude Code plugin marketplace. */
+export const REPO = "ValoQuang/kz-pgw-mcp";
+/** <plugin>@<marketplace>, as in .claude-plugin/. */
+export const PLUGIN = "kz-pgw@kz-pgw-mcp";
 
 export const CLI = {
   init: `npx -y ${PKG} init`,

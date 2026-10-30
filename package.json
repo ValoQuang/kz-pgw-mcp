@@ -4,7 +4,7 @@
   "description": "KZ Payment Gateway MCP: staging backoffice API, PGW UAT verification, read-only staging Postgres for devs",
   "license": "UNLICENSED",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/server.js",
   "bin": {
     "kz-pgw-mcp": "dist/cli.js"
   },
@@ -15,8 +15,7 @@
     "README.md"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
-    "access": "restricted"
+    "access": "public"
   },
   "repository": {
     "type": "git",
@@ -28,10 +27,12 @@
     "start": "node dist/cli.js",
     "init": "node dist/cli.js init",
     "check": "node scripts/check.mjs",
+    "test": "node --test test/*.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "inspect": "npx @modelcontextprotocol/inspector node dist/cli.js",
     "mcpb": "npm run build && npx -y @anthropic-ai/mcpb pack . dist-mcpb/kz-pgw-mcp.mcpb",
-    "prepublishOnly": "npm run build && npm run check"
+    "prepublishOnly": "npm run build && npm run check && npm test",
+    "version": "node scripts/version-sync.mjs && git add manifest.json .claude-plugin"
   },
   "engines": {
     "node": ">=20"

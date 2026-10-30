@@ -1,0 +1,18 @@
+{
+  "name": "kz-pgw-mcp",
+  "owner": {
+    "name": "ValoQuang",
+    "email": "quang.tr@s5tech.co"
+  },
+  "metadata": {
+    "description": "KZ payment-gateway tools for Claude Code: staging backoffice, PGW UAT, read-only staging DB."
+  },
+  "plugins": [
+    {
+      "name": "kz-pgw",
+      "source": "./",
+      "description": "KZ staging backoffice API, PGW UAT verification and read-only staging Postgres (dev role). MCP server + 3 skills.",
+      "version": "0.2.1"
+    }
+  ]
+}

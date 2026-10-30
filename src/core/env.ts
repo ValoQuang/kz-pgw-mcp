@@ -63,7 +63,10 @@ export const ENV = {
   PG_MCP_VPN_APP: { section: "vpn", def: "NordLayer", emptyIsValue: true, note: 'App opened on connection error. "" disables' },
   PG_MCP_VPN_GATEWAY: { section: "vpn", def: "s5tech-VPS" },
 
-  KZ_SKILLS_DIR: { section: "skills", note: "Where skills are copied. Blank = ~/.claude/skills. off = don't copy" },
+  KZ_SKILLS_DIR: {
+    section: "skills",
+    note: "Where skills are copied. Blank = ~/.claude/skills. off = don't copy. plugin = Claude Code plugin ships them",
+  },
 } as const satisfies Record<string, Spec>;
 
 export type EnvKey = keyof typeof ENV;

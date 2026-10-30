@@ -1,5 +1,7 @@
-# Publish to GitHub Packages on a version tag, and attach the .mcpb to the release.
+# On a version tag: publish to npmjs (public, no token for users) and GitHub Packages
+# (kept for users whose ~/.npmrc maps @valoquang there), then attach the .mcpb to the release.
 #   npm version patch && git push --follow-tags
+# npmjs needs repo secret NPM_TOKEN (npm automation token with publish rights on @valoquang).
 name: publish
 on:
   push:
@@ -7,21 +9,34 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write # npm provenance
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://npm.pkg.github.com
-          scope: "@valoquang"
       - run: corepack enable && yarn install --frozen-lockfile
       - run: npm run build
       - run: npm run check
+      - run: npm test
       - run: node scripts/smoke.mjs
-      - run: npm publish
+      - name: Publish to npmjs
+        if: env.NPM_TOKEN != ''
+        run: |
+          printf '%s\n' '@valoquang:registry=https://registry.npmjs.org/' '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > "$RUNNER_TEMP/npmjs.npmrc"
+          npm publish --userconfig "$RUNNER_TEMP/npmjs.npmrc" --access public --provenance
+      - name: Skip npmjs (no NPM_TOKEN)
+        if: env.NPM_TOKEN == ''
+        run: echo "::warning::NPM_TOKEN secret not set. Skipped npmjs; only GitHub Packages published."
+      - name: Publish to GitHub Packages
+        run: |
+          printf '%s\n' '@valoquang:registry=https://npm.pkg.github.com/' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/gpr.npmrc"
+          npm publish --userconfig "$RUNNER_TEMP/gpr.npmrc"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build .mcpb

@@ -64,3 +64,8 @@ assert.throws(() => normalizePath("//evil.com/x"));
 assert.throws(() => normalizePath("/\\evil.com/x"));
 assert.equal(normalizePath("/account/funding/tx?memberId=a").search, "?memberId=a");
 console.log("bo_api paths ok");
+
+// ---------- versions ----------
+import { execFileSync } from "node:child_process";
+execFileSync(process.execPath, [new URL("./version-sync.mjs", import.meta.url).pathname, "--check"], { stdio: "inherit" });
+console.log("versions ok: package.json = manifest.json = .claude-plugin/*");
