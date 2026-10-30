@@ -101,12 +101,14 @@ export const ssh = {
   passphrase: (): string | undefined => raw("SSH_KEY_PASSPHRASE"),
 };
 
-/** Claude skills. KZ_SKILLS_DIR blank → ~/.claude/skills. "off" disables. */
+/** Claude skills. KZ_SKILLS_DIR blank → ~/.claude/skills. "off" disables. "plugin" → the Claude Code plugin ships them. */
 export const skills = {
   disabled: (): boolean => /^(0|off|false|no)$/i.test(raw("KZ_SKILLS_DIR") ?? ""),
+  /** Set by the plugin's mcpServers env. Copies made by older versions are removed, nothing is copied. */
+  fromPlugin: (): boolean => /^plugin$/i.test(raw("KZ_SKILLS_DIR") ?? ""),
   dir: (): string => {
     const v = raw("KZ_SKILLS_DIR");
-    return v ? resolve(expandHome(v)) : DEFAULT_SKILLS_DIR;
+    return v && !skills.fromPlugin() ? resolve(expandHome(v)) : DEFAULT_SKILLS_DIR;
   },
 };
 
@@ -130,6 +132,6 @@ export function summary(): Record<string, string> {
       return [k, v === undefined || v === "" ? "(unset)" : isSecret(k) ? "***" : v];
     }),
   );
-  out.KZ_SKILLS_DIR = skills.disabled() ? "off" : skills.dir();
+  out.KZ_SKILLS_DIR = skills.disabled() ? "off" : skills.fromPlugin() ? "plugin" : skills.dir();
   return out;
 }

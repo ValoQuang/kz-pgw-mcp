@@ -1,0 +1,22 @@
+{
+  "name": "kz-pgw",
+  "version": "0.2.1",
+  "description": "KZ staging backoffice API, PGW UAT verification and read-only staging Postgres (dev role). MCP server + 3 skills.",
+  "author": {
+    "name": "S5 Tech",
+    "email": "quang.tr@s5tech.co"
+  },
+  "homepage": "https://github.com/ValoQuang/kz-pgw-mcp#readme",
+  "repository": "https://github.com/ValoQuang/kz-pgw-mcp",
+  "license": "UNLICENSED",
+  "keywords": ["kz", "payment-gateway", "backoffice", "uat", "postgres", "staging"],
+  "mcpServers": {
+    "kz-pgw": {
+      "command": "npx",
+      "args": ["-y", "@valoquang/kz-pgw-mcp@0.2.1"],
+      "env": {
+        "KZ_SKILLS_DIR": "plugin"
+      }
+    }
+  }
+}

@@ -8,3 +8,5 @@ dist-mcpb
 tsconfig.json
 .gitignore
 .DS_Store
+test
+.claude-plugin

@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 
-import { DEFAULT_MCP_NAME, PKG } from "../core/constants.js";
+import { DEFAULT_MCP_NAME, PKG, PLUGIN, REPO } from "../core/constants.js";
 import { CLI_JS, CONFIG_FILE } from "../core/paths.js";
 import { syncSkillsReport } from "../skills/sync.js";
 
@@ -64,5 +64,5 @@ export async function install(args: string[]): Promise<void> {
   console.log(`\nClaude Code:\n  ${codeCmd}`);
   console.log(`\nCursor / others (.mcp.json):\n${mcpJson}`);
   console.log(`\nSkills:\n  ${syncSkillsReport().join("\n  ")}`);
-  if (!local) console.log(`\nNote: npx needs a GitHub Packages token in ~/.npmrc for @valoquang. See README.`);
+  if (!local) console.log(`\nClaude Code plugin (MCP + skills, recommended):\n  /plugin marketplace add ${REPO}\n  /plugin install ${PLUGIN}`);
 }

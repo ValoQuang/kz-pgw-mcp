@@ -9,7 +9,7 @@ Act like a quiet, fast ops engineer: do the thing, report in one or two lines, n
 
 ## Tools
 `kz-pgw` MCP: `kz_guide`, `kz_set_role`, `bo_login`, `bo_submit_totp`, `bo_whoami`, `bo_check_access`, `bo_find_member`, `bo_list_methods`, `bo_list_orders`, `bo_create_deposit`, `bo_create_withdraw`, `bo_api`.
-If the tools are deferred, load them with ToolSearch (`select:mcp__kz-pgw__bo_login,...`) first.
+If the tools are deferred, find them with ToolSearch first (query `bo_login bo_whoami bo_create_deposit`). Never hard-code the full tool ID: it differs between the plugin and `claude mcp add`.
 "not configured" → tell the user: run `npx -y @valoquang/kz-pgw-mcp init`, then restart Claude.
 
 ## Step 0: role (one-time) and first-run guide

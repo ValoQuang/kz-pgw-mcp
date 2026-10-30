@@ -7,6 +7,8 @@
  * overwritten. Skills dropped from the package are removed.
  *
  * Folder: KZ_SKILLS_DIR (blank → ~/.claude/skills). Opt out: KZ_SKILLS_DIR=off
+ * KZ_SKILLS_DIR=plugin (set by the Claude Code plugin): the plugin loads skills/
+ * itself, so nothing is copied and our old copies are removed (no duplicates).
  */
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -37,8 +39,10 @@ const ownedVersion = (dir: string): string | undefined => {
 export function syncSkills(): SkillSync {
   const dir = skills.dir();
   const out: SkillSync = { dir, installed: [], upToDate: [], skipped: [], removed: [] };
-  const bundled = subdirs(BUNDLED_SKILLS_DIR).filter((n) => existsSync(join(BUNDLED_SKILLS_DIR, n, "SKILL.md")));
-  mkdirSync(dir, { recursive: true });
+  const bundled = skills.fromPlugin()
+    ? []
+    : subdirs(BUNDLED_SKILLS_DIR).filter((n) => existsSync(join(BUNDLED_SKILLS_DIR, n, "SKILL.md")));
+  if (bundled.length) mkdirSync(dir, { recursive: true });
 
   for (const name of bundled) {
     const dest = join(dir, name);
@@ -73,7 +77,8 @@ export function syncSkillsReport(): string[] {
       s.removed.length && `removed old: ${s.removed.join(", ")}`,
       s.skipped.length && `skipped (you have your own copy): ${s.skipped.join(", ")}`,
     ].filter((l): l is string => !!l);
-    return lines.length ? lines : ["none bundled"];
+    if (lines.length) return lines;
+    return [skills.fromPlugin() ? "loaded by the Claude Code plugin" : "none bundled"];
   } catch (e) {
     return [`sync failed (${(e as Error).message})`];
   }

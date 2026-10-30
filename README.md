@@ -4,7 +4,7 @@ One MCP server for KZ payment-gateway work on **staging** (`*.trykz.dev`). Backo
 
 - **Role, asked once:** `project` (PA / QA / PM: backoffice login only, no DB setup) or `dev` (backoffice + read-only DB).
 - 17 tools: `kz_*` (guide, role), `bo_*` (backoffice) and `pg_*` (Postgres, dev).
-- 3 skills: `kz-guide`, `kz-create-orders`, `kz-verify-orders`. Auto-copied to `~/.claude/skills/`.
+- 3 skills: `kz-guide`, `kz-create-orders`, `kz-verify-orders`. Shipped by the Claude Code plugin.
 - First use shows a short guide.
 - Writes (deposit, withdraw, non-GET API) are **off by default**.
 - Staging only. Needs NordLayer VPN.
@@ -23,9 +23,13 @@ One MCP server for KZ payment-gateway work on **staging** (`*.trykz.dev`). Backo
 
 ## Quick start
 
-Claude Code, 4 steps:
+Claude Code or the Claude Desktop **Code** tab. No token needed.
 
-1. Add a GitHub token with `read:packages` to `~/.npmrc` ([details](#b-claude-code--cursor--others--npx)).
+1. Add the plugin (MCP server + 3 skills). In a `claude` terminal:
+   ```
+   /plugin marketplace add ValoQuang/kz-pgw-mcp
+   /plugin install kz-pgw@kz-pgw-mcp
+   ```
 2. Set up. First question is your role. `project` only asks for the backoffice login:
    ```bash
    npx -y @valoquang/kz-pgw-mcp init
@@ -34,12 +38,9 @@ Claude Code, 4 steps:
    ```bash
    npx -y @valoquang/kz-pgw-mcp doctor
    ```
-4. Register the server, then restart Claude:
-   ```bash
-   claude mcp add kz-pgw -- npx -y @valoquang/kz-pgw-mcp
-   ```
+4. Restart Claude.
 
-Skipped `init` (e.g. `.mcpb` with an empty role)? Claude asks "project or dev?" on the first call and saves the answer.
+Skipped `init`? Claude asks "project or dev?" on the first call and saves the answer. Credentials still need `init` (or env vars).
 
 Try it:
 
@@ -50,29 +51,47 @@ make a 300 deposit on tpg1 via cpay-2
 verify UAT for cpay-2 on tpg1 since 2026-10-20
 ```
 
+**Upgrading from `claude mcp add kz-pgw`?** Remove the old entry first, or the server runs twice:
+
+```bash
+claude mcp remove kz-pgw
+```
+
+The plugin server deletes the skill copies older versions put in `~/.claude/skills/` (only folders with the `.kz-pgw-mcp` marker).
+
+**Old `~/.npmrc` line** `@valoquang:registry=https://npm.pkg.github.com`: keep it (GitHub Packages still gets every release) or delete it to use npmjs.
+
 ## Install
 
 Every method asks for credentials. Nothing is baked into the package.
 
-### A. Claude Desktop — `.mcpb` (no terminal)
+| Client | Method | Skills |
+|---|---|---|
+| Claude Code, Desktop **Code** tab | A. Plugin | Included |
+| Claude Desktop **chat** | B. `.mcpb` | Upload by hand |
+| Cursor / others | C. `npx` | — |
+
+### A. Claude Code plugin (recommended)
+
+```
+/plugin marketplace add ValoQuang/kz-pgw-mcp
+/plugin install kz-pgw@kz-pgw-mcp
+```
+
+Update: `/plugin marketplace update kz-pgw-mcp`. The plugin pins the npm version, so server and skills always match.
+
+Tool IDs: `mcp__plugin_kz-pgw_kz-pgw__*`. Skills use bare names (`bo_login`), so they work with any install.
+
+### B. Claude Desktop — `.mcpb` (no terminal)
 
 1. Download `kz-pgw-mcp.mcpb` from the latest [GitHub release](https://github.com/ValoQuang/kz-pgw-mcp/releases).
 2. Double-click it, or Claude Desktop → Settings → Extensions → Install.
 3. Fill the form. Role: `project` or `dev`. `project` → fill only BO username/password; leave PG / SSH empty. `dev` → also PG host/user/password and SSH jump host. Passwords go to the OS keychain.
 4. Tools appear under `kz-pgw-mcp`.
 
-Change a value later: Settings → Extensions → kz-pgw-mcp → Configure.
+Change a value later: Settings → Extensions → kz-pgw-mcp → Configure. Also using the plugin in the Code tab? Set "Claude skills folder" to `off`.
 
-### B. Claude Code / Cursor / others — `npx`
-
-One-time: GitHub token with `read:packages` in `~/.npmrc`:
-
-```
-@valoquang:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=ghp_xxx
-```
-
-Then:
+### C. Cursor / others — `npx`
 
 ```bash
 npx -y @valoquang/kz-pgw-mcp init
@@ -90,12 +109,12 @@ npx -y @valoquang/kz-pgw-mcp install
 |---|---|
 | `init` | Asks role first, then only what that role needs → `~/.config/kz-pgw/.env` (chmod 600). Re-run any time; Enter keeps the current value |
 | `doctor` | Prints role + config (secrets masked). `dev`: runs `SELECT 1` |
-| `install` | Writes the Claude Desktop entry, prints the Claude Code command and `.mcp.json` snippet, copies skills |
+| `install` | Writes the Claude Desktop entry, prints the Claude Code command, plugin commands and `.mcp.json` snippet, copies skills |
 | `install --name X` | Same, custom server name (default `kz-pgw` → tools appear as `mcp__kz-pgw__*`) |
 | `install --local` | Points at a git checkout's `dist/cli.js` instead of npx |
 | *(no args)* | Starts the MCP server on stdio |
 
-Claude Code by hand:
+Claude Code without the plugin (no skills):
 
 ```bash
 claude mcp add kz-pgw -- npx -y @valoquang/kz-pgw-mcp
@@ -109,7 +128,7 @@ Cursor / others (`.mcp.json`):
 
 Config missing? The server still starts. Each tool replies `not configured: missing X. Run npx -y @valoquang/kz-pgw-mcp init` instead of crashing.
 
-### C. From a git clone (contributors, pre-publish)
+### D. From a git clone (contributors, pre-publish)
 
 ```bash
 git clone git@github.com:ValoQuang/kz-pgw-mcp.git && cd kz-pgw-mcp
@@ -173,7 +192,7 @@ Login flow: `bo_login` → if `totpRequired` and not `autoTotp`, get the code �
 
 ## Skills
 
-`skills/` ships with the npm package and the `.mcpb`. Each skill tells Claude how to use the tools above. All skills ask the role once, then show the guide.
+`skills/` ships with the plugin, the npm package and the `.mcpb`. Each skill tells Claude how to use the tools above. All skills ask the role once, then show the guide.
 
 | Skill | Say this | Does |
 |---|---|---|
@@ -204,10 +223,11 @@ Full SOP (how to run each case, region extras, before / after UAT): [`skills/kz-
 
 ### Where skills go
 
-- Copied to `~/.claude/skills/` on `install` and on every server start. Restart Claude once after the first start.
+- **Plugin:** loaded from the plugin. Nothing is copied. Old copies (with the `.kz-pgw-mcp` marker) are deleted from `~/.claude/skills/`.
+- **`.mcpb` / `npx`:** copied to `~/.claude/skills/` on `install` and on every server start. Restart Claude once after the first start.
 - Updated when the package version changes. Skills removed from the package are deleted (0.2.0 removes `kz-bo-pgw`, `kz-sql`, `kz-pgw-issue`; `kz-bo-pgw` is now `kz-create-orders`).
 - Only folders with marker file `.kz-pgw-mcp` are touched. Your own skill with the same name is never overwritten. To keep an old one: delete its `.kz-pgw-mcp` file before upgrading.
-- Change the folder with `KZ_SKILLS_DIR` (`init` asks; `.mcpb` field "Claude skills folder"). `off` = don't copy.
+- Change the folder with `KZ_SKILLS_DIR` (`init` asks; `.mcpb` field "Claude skills folder"). `off` = don't copy. `plugin` = set by the plugin, don't copy.
 - Claude Desktop **chat** (not the Code tab) does not read `~/.claude/skills/`. Upload by hand: zip each folder → Settings → Capabilities → Skills.
 
 ## Config
@@ -227,7 +247,7 @@ Load order: env vars → `$KZ_PGW_CONFIG` → `~/.config/kz-pgw/.env` → `<pack
 | `PG_MCP_LABEL` | `$PGDATABASE@$PGHOST` | Shown in tool descriptions |
 | `PG_MCP_TIMEOUT_MS` | `30000` | Query timeout |
 | `PG_MCP_VPN_APP`, `PG_MCP_VPN_GATEWAY` | `NordLayer`, `s5tech-VPS` | macOS: app opened on network error. `""` disables |
-| `KZ_SKILLS_DIR` | `~/.claude/skills` | `off` = don't copy skills |
+| `KZ_SKILLS_DIR` | `~/.claude/skills` | `off` = don't copy skills. `plugin` = the plugin ships them |
 
 ## Troubleshooting
 
@@ -240,7 +260,8 @@ Load order: env vars → `$KZ_PGW_CONFIG` → `~/.config/kz-pgw/.env` → `<pack
 | `Write tools are disabled` | Set `KZ_PGW_ALLOW_WRITES=true` in `~/.config/kz-pgw/.env`, restart Claude |
 | BO call returns 401 | Token expired (~24 h). `bo_login` again |
 | `bo_login` keeps asking for TOTP | Add `KZ_TOTP_SECRET_<GROUP>`, or answer with `bo_submit_totp` |
-| `npx` 401 / 404 | `~/.npmrc` token missing or lacks `read:packages` |
+| `npx` 401 / 404 | `~/.npmrc` maps `@valoquang` to GitHub Packages without a valid token. Delete that line to use npmjs |
+| Tools listed twice | Old `claude mcp add kz-pgw` plus the plugin. Run `claude mcp remove kz-pgw` |
 | Skills not showing | Restart Claude once after first server start. Desktop chat: upload zip by hand |
 | Tool call hangs in Desktop | Look for a pending approval prompt |
 | Anything else | `npx -y @valoquang/kz-pgw-mcp doctor` |
@@ -254,7 +275,8 @@ yarn install && yarn build
 | Command | Does |
 |---|---|
 | `yarn dev` | Run from source with tsx |
-| `yarn check` | SQL guard + bo_api path tests |
+| `npm run check` | SQL guard + bo_api path tests + version match (`yarn check` is a yarn built-in, not this script) |
+| `npm test` | `node:test` suite in `test/`: TOTP, login / refresh / expiry, bo_api gates with mocked fetch, skills sync, env file |
 | `node scripts/smoke.mjs` | No creds: 17 tools listed, role gate, project / dev tool lists, write gate, missing-config messages |
 | `node scripts/smoke.mjs --live` | Uses `~/.config/kz-pgw/.env`, needs VPN, runs as `dev` |
 | `yarn inspect` | MCP Inspector |
@@ -295,13 +317,16 @@ src/
   skills/sync.ts      copies skills/ → KZ_SKILLS_DIR
 skills/               bundled Claude skills (kz-guide, kz-create-orders, kz-verify-orders)
 manifest.json         .mcpb user_config form for Claude Desktop
+.claude-plugin/        Claude Code plugin (plugin.json: MCP server + npx pin) and marketplace.json
+test/                 node:test suite (npm test), runs against dist/
+scripts/              check.mjs, smoke.mjs, version-sync.mjs
 ```
 
 Add an env var: `src/core/env.ts` → accessor in `config.ts`. `init` and `doctor` pick it up. Update `manifest.json` and `.env.example` by hand.
 
 Add a tool: name in `TOOLS` (`constants.ts`) → register in `bo/tools.ts` or `pg/tools.ts` → dev only? add it to `DEV_ONLY_TOOLS` → add it to the `want` list in `scripts/smoke.mjs`, `manifest.json` and this README.
 
-Add a skill: new folder `skills/<name>/SKILL.md`. Shipped and synced automatically.
+Add a skill: new folder `skills/<name>/SKILL.md`. Shipped by the plugin and synced for `.mcpb` / `npx`. Refer to tools by bare name (`bo_login`), never `mcp__…`.
 
 ## Release
 
@@ -309,13 +334,13 @@ Add a skill: new folder `skills/<name>/SKILL.md`. Shipped and synced automatical
 npm version patch
 ```
 
-Also bump `"version"` in `manifest.json`, then:
+The `version` hook (`scripts/version-sync.mjs`) copies the new version into `manifest.json`, `.claude-plugin/plugin.json` (including the npx pin) and `.claude-plugin/marketplace.json`, in the same commit. `npm run check` fails if they disagree. Then:
 
 ```bash
 git push --follow-tags
 ```
 
-`.github/workflows/publish.yml` on tag `v*`: build → check → smoke → `npm publish` to GitHub Packages → pack `.mcpb` → attach to the GitHub release.
+`.github/workflows/publish.yml` on tag `v*`: build → check → test → smoke → `npm publish` to npmjs (public, needs repo secret `NPM_TOKEN`) and GitHub Packages → pack `.mcpb` → attach to the GitHub release.
 
 Local `.mcpb`: `yarn mcpb` → `dist-mcpb/kz-pgw-mcp.mcpb` (~10 MB, bundles `node_modules`).
 
@@ -326,4 +351,4 @@ Local `.mcpb`: `yarn mcpb` → `dist-mcpb/kz-pgw-mcp.mcpb` (~10 MB, bundles `nod
 - **Prompt injection:** DB rows and webhooks can carry text aimed at Claude. Limits: non-GET `bo_api` only reaches deposit / withdraw; write tools are marked destructive. Never set `bo_create_*` or `bo_api` to "always allow" in Claude permissions, so you see every write before it runs.
 - **Who can write:** nobody writes the DB through this MCP. Deposits / withdrawals go through the BO API as your own staff account (password + TOTP). Before sending, `bo_create_deposit` / `bo_create_withdraw` read your privileges from `kz-<group>` (`entityHasPrivilege`, same source kz-api uses) and stop if you lack `account:deposit-creator` / `account:withdrawal-creator`. kz-api checks again on the server.
 - `bo_create_deposit` / `bo_create_withdraw` create real staging transactions. Keep `KZ_PGW_ALLOW_WRITES` off unless you need it that day.
-- Private package (GitHub Packages, `access: restricted`). Credentials stay on your machine: `~/.config/kz-pgw/.env` (600) or the OS keychain via `.mcpb`.
+- Public package (npmjs + GitHub Packages). It holds no credentials or hostnames beyond `trykz.dev`. Credentials stay on your machine: `~/.config/kz-pgw/.env` (600) or the OS keychain via `.mcpb`.
