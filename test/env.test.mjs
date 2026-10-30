@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { dist } from "./helpers.mjs";
 
-const { parseEnvFile, renderEnvFile, get, isSecret } = await import(dist("core/env.js"));
+const { parseEnvFile, renderEnvFile, get, isSecret, totpKey } = await import(dist("core/env.js"));
 
 test("parseEnvFile: comments, quotes, blank lines, = in values", () => {
   const v = parseEnvFile(`# c\n\nA=1\nB="two words"\nC='x#y'\nD=a=b\n=bad\nE=\n`);
@@ -35,6 +35,6 @@ test("get applies defaults; emptyIsValue keeps \"\"", () => {
 
 test("isSecret covers passwords and per-group TOTP keys", () => {
   assert.ok(isSecret("KZ_PASSWORD"));
-  assert.ok(isSecret("KZ_TOTP_SECRET_TTG1"));
+  assert.ok(isSecret(totpKey("ttg1")));
   assert.ok(!isSecret("KZ_USERNAME"));
 });
