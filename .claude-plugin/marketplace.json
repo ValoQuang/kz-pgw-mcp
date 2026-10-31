@@ -12,7 +12,7 @@
       "name": "kz-pgw",
       "source": "./",
       "description": "KZ staging backoffice API, PGW UAT verification and read-only staging Postgres (dev role). MCP server + 3 skills.",
-      "version": "0.3.0"
+      "version": "0.3.1"
     }
   ]
 }

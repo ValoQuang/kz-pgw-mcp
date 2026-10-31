@@ -1,6 +1,6 @@
 {
   "name": "kz-pgw",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "KZ staging backoffice API, PGW UAT verification and read-only staging Postgres (dev role). MCP server + 3 skills.",
   "author": {
     "name": "S5 Tech",
@@ -22,7 +22,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@valoquang/kz-pgw-mcp@0.3.0"
+        "@valoquang/kz-pgw-mcp@0.3.1"
       ],
       "env": {
         "KZ_SKILLS_DIR": "plugin"
