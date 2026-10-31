@@ -202,7 +202,7 @@ Login flow: `bo_login` → if `totpRequired` and not `autoTotp`, get the code �
 
 ### `kz-verify-orders`
 
-UAT passes only when the client ran every case in the Member Portal (`creatorId` null). Staff-made orders are listed but never count.
+Orders made in the Member Portal (`creatorId` null) and in BO by staff (`creatorId` set) both count. A case met by a BO order shows `✅ (made in BO)`.
 
 | # | Case (OS-52) | Matching order | No order → |
 |---|---|---|---|
